@@ -295,9 +295,26 @@ class Manejador(BaseHTTPRequestHandler):
         self._escribir_api(borrar)
 
 
+def abrir_servidor(puerto):
+    """Con puerto fijo, lo usa o falla con un mensaje claro. Sin puerto, prueba 8765-8794."""
+    if puerto is not None:
+        try:
+            return ThreadingHTTPServer(("127.0.0.1", puerto), Manejador)
+        except OSError as e:
+            sys.exit(f"No se pudo usar el puerto {puerto}: {e.strerror}. "
+                     "Prueba otro con --port, o quítalo para que se elija uno libre.")
+    for p in range(8765, 8795):
+        try:
+            return ThreadingHTTPServer(("127.0.0.1", p), Manejador)
+        except OSError:
+            continue
+    sys.exit("No se encontró ningún puerto libre entre 8765 y 8794. Usa --port con otro número.")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--port", type=int, default=8765)
+    ap.add_argument("--port", type=int, default=None,
+                    help="puerto fijo; si se omite, usa el primero libre desde 8765")
     ap.add_argument("--dir", default="docs/alucinaciones", help="carpeta donde se guardan los hallazgos")
     ap.add_argument("--autor", default=None, help="nombre de quien registra (por defecto, git config user.name)")
     ap.add_argument("--no-browser", action="store_true")
@@ -305,8 +322,9 @@ def main():
 
     Manejador.almacen = Almacen(Path(a.dir))
     Manejador.autor = a.autor or autor_por_defecto()
-    srv = ThreadingHTTPServer(("127.0.0.1", a.port), Manejador)
-    url = f"http://127.0.0.1:{a.port}/"
+    srv = abrir_servidor(a.port)
+    puerto = srv.server_address[1]
+    url = f"http://127.0.0.1:{puerto}/"
     print(f"Bitácora de alucinaciones en {url}")
     print(f"  Carpeta: {Path(a.dir).resolve()}")
     print(f"  Registras como: {Manejador.autor}")

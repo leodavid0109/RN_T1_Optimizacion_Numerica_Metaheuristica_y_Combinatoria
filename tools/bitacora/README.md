@@ -5,11 +5,16 @@ Solo usa la biblioteca estándar de Python (3.9 o superior): no agrega nada a `r
 
 ## Uso
 
-Desde la raíz del repositorio:
+**Forma fácil:** doble clic en `abrir-bitacora.bat` (Windows) o `abrir-bitacora.sh`
+(Mac y Linux), en la raíz del repositorio. Para tenerlo a la mano, clic derecho sobre el
+`.bat` → Enviar a → Escritorio (crear acceso directo).
+
+**Desde la terminal**, en la raíz del repositorio:
 
     python tools/bitacora/server.py
 
-Se abre `http://127.0.0.1:8765`. Opciones: `--port 9000`, `--dir docs/alucinaciones`,
+Se abre el navegador en el primer puerto libre desde 8765 (lo imprime al arrancar).
+Opciones: `--port 9000` (puerto fijo), `--dir docs/alucinaciones`,
 `--autor "Nombre"` (por defecto, `git config user.name`), `--no-browser`.
 
 ## Qué guarda y cómo se comparte
