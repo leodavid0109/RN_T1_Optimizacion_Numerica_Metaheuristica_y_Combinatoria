@@ -33,8 +33,16 @@ pytest
 Cada experimento se ejecuta con un comando (se completa a medida que existan):
 
 ```bash
-# python -m experiments.<nombre> --config configs/<nombre>.yaml
+# Descenso por gradiente, versión de demostración (~30 s, con figuras y GIF)
+python -m experiments.gd_experiment --config configs/gd_demo.yaml
+
+# Descenso por gradiente, versión completa (~2,5 min sin figuras)
+python -m experiments.gd_experiment --config configs/gd.yaml
 ```
+
+Salidas: `results/gd/runs.csv` (una fila por corrida), `results/gd/summary.csv` (media, desviación,
+mejor, peor y tasa de éxito por tasa de aprendizaje) y `figures/gd/` (convergencia, cajas,
+curvas de nivel y GIF en 2D). Los parámetros (presupuesto, tasas, umbrales) están en `configs/gd.yaml`.
 
 ## Documentación del equipo
 

@@ -1,0 +1,14 @@
+# Versión de DEMOSTRACIÓN: mismos pasos que gd.yaml, con presupuesto pequeño (segundos).
+funciones: [rosenbrock, rastrigin]
+dimensiones: [2, 3]
+n_runs: 30
+presupuesto:
+  2: 2000
+  3: 3000
+grad_cost: 1.0
+tasas_aprendizaje:
+  rosenbrock: [0.00005, 0.0001]
+  rastrigin: [0.001, 0.003]
+umbrales_exito: [0.0001, 0.01]
+puntos_curva: 100
+gif_semilla: 0
