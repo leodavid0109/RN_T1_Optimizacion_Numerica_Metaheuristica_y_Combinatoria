@@ -1,11 +1,19 @@
-# Trabajo 1 · Optimización numérica, metaheurística y combinatoria
+# Trabajo 1 · Optimización Numérica, Metaheurística y Combinatoria
 
-Redes neuronales y algoritmos bioinspirados · UNAL, Facultad de Minas · 2026-02
+Redes Neuronales y Algoritmos Bioinspirados · UNAL, Facultad de Minas · 2026-02
+
+## Integrantes
+- Leonard David Vivas Dallos
+- Integrante 2
+- Integrante 3
 
 ## Contenido
 
-- **Parte 1:** descenso por gradiente frente a algoritmo evolutivo, PSO y evolución diferencial, sobre dos funciones de prueba en 2D y 3D.
-- **Parte 2:** problema del viajero sobre las 47 capitales peninsulares de España, con colonia de hormigas y algoritmo genético; costo = valor de la hora × tiempo + peajes + combustible.
+- **Parte 1:** Descenso por gradiente frente a algoritmo evolutivo, PSO y evolución diferencial, sobre dos funciones de prueba en 2D y 3D.
+- **Parte 2:** Problema del viajero sobre las 47 capitales peninsulares de España, con colonia de hormigas y algoritmo genético.
+$
+\text{Costo} = \text{valor de la hora} \times \text{tiempo} + \text{peajes} + \text{combustible}
+$
 
 ## Instalación
 
