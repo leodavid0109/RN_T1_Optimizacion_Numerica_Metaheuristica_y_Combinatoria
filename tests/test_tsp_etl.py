@@ -243,6 +243,19 @@ def test_provider_uses_mock_transport_and_never_stores_api_key(tmp_path):
     assert loaded == routes
 
 
+def test_ors_toll_avoidance_uses_documented_array_shape():
+    calls = []
+
+    def opener(request, timeout):
+        calls.append(json.loads(request.data.decode("utf-8")))
+        return _FakeHttpResponse(_ors_response())
+
+    provider = OpenRouteServiceProvider("synthetic-test-key", opener=opener, min_interval_seconds=0)
+    provider.fetch(AcquisitionRequest(_city("x", 40, -3), _city("y", 41, -4),
+                                      strategy="avoid_tolls", avoid_tolls=True))
+    assert calls[0]["options"]["avoid_features"] == ["tollways"]
+
+
 def test_acquisition_resumes_without_duplicate_calls_and_records_failures(tmp_path):
     class Provider:
         provider_name = "fake"

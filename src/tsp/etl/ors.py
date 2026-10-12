@@ -69,7 +69,7 @@ class OpenRouteServiceProvider:
         if request.request_alternatives:
             body["alternative_routes"] = {"target_count": request.request_alternatives}
         if request.avoid_tolls or request.strategy == "avoid_tolls":
-            body["options"] = {"avoid_features": "tollways"}
+            body["options"] = {"avoid_features": ["tollways"]}
         url = f"{self.endpoint}/{self.profile}/geojson"
         safe_request = {"method": "POST", "url": url, "body": body}
         raw = self._post(url, body)
