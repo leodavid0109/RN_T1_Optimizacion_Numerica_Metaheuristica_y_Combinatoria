@@ -78,6 +78,17 @@ que también trae `check_result` para probar el contrato). Para sumar un método
 se registra en `src/methods.py` y se agregan sus hiperparámetros en `metodos:` de
 `configs/compare.yaml`.
 
+Informe de la Parte 1 (`docs/Informe_Parte1.docx`): se genera desde `results/` y `figures/` con Node
+(requiere haber corrido antes los experimentos completos):
+
+```bash
+npm --prefix informe install    # una sola vez
+npm --prefix informe run parte1
+```
+
+Las tablas se leen de los CSV; el texto del análisis está en `informe/build_parte1.js` y hay que
+revisarlo a mano si cambian los resultados. Lo pendiente sale resaltado en amarillo.
+
 ## Documentación del equipo
 
 - [Decisiones](docs/decisiones.md)

@@ -1,0 +1,11 @@
+{
+  "name": "informe-t1",
+  "private": true,
+  "description": "Genera docs/Informe_Parte1.docx a partir de results/ y figures/",
+  "scripts": {
+    "parte1": "node build_parte1.js"
+  },
+  "dependencies": {
+    "docx": "9.10.0"
+  }
+}

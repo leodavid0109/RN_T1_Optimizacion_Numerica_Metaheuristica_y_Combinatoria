@@ -8,3 +8,6 @@ __pycache__/
 # salidas de las corridas de demostración (regenerables en segundos)
 results/*_demo/
 figures/*_demo/
+
+# dependencias de Node del generador del informe (npm --prefix informe install)
+node_modules/
