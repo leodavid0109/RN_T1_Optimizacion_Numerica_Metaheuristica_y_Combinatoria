@@ -98,3 +98,4 @@ revisarlo a mano si cambian los resultados. Lo pendiente sale resaltado en amari
 - [Fundamentos del módulo TSP](docs/tsp_fase1.md)
 - [Modelos duales del TSP](docs/tsp_modelo_dual.md)
 - [Preparación de adquisición de datos reales del TSP](docs/tsp_adquisicion.md)
+- [ETL local y construcción offline de matrices del TSP](docs/tsp_etl.md)
