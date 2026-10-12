@@ -1,0 +1,17 @@
+# Versión de DEMOSTRACIÓN de configs/compare.yaml: presupuesto pequeño (segundos).
+funciones: [rosenbrock, rastrigin]
+dimensiones: [2, 3]
+n_runs: 30
+presupuesto:
+  2: 2000
+  3: 3000
+grad_cost: 1.0
+umbrales_exito: [0.0001, 0.01]
+puntos_curva: 100
+metodos:
+  gd:
+    rosenbrock: {lr: 0.0002}
+    rastrigin: {lr: 0.003}
+salidas:                   # carpetas propias: la demo no pisa los resultados completos
+  resultados: results/compare_demo
+  figuras: figures/compare_demo

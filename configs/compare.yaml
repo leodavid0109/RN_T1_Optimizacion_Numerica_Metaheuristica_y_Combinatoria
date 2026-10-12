@@ -1,0 +1,22 @@
+# Comparación de los métodos de la Parte 1 (configuración COMPLETA).
+# Mismo presupuesto, semillas y umbrales que configs/gd.yaml (ver docs/decisiones.md).
+# Formato común de los métodos: src/result.py · registro de métodos: src/methods.py
+funciones: [rosenbrock, rastrigin]
+dimensiones: [2, 3]
+n_runs: 30
+presupuesto:               # evaluaciones equivalentes (f + grad_cost * grad)
+  2: 20000
+  3: 40000
+grad_cost: 1.0
+umbrales_exito: [0.0001, 0.01]         # éxito si f - f_opt <= umbral
+puntos_curva: 200
+metodos:                   # hiperparámetros por método y función
+  gd:                      # tasas elegidas en results/gd/summary.csv
+    rosenbrock: {lr: 0.0002}
+    rastrigin: {lr: 0.003}
+  # ea:  {rosenbrock: {...}, rastrigin: {...}}   (integrante 2)
+  # pso: {rosenbrock: {...}, rastrigin: {...}}
+  # de:  {rosenbrock: {...}, rastrigin: {...}}
+salidas:
+  resultados: results/compare
+  figuras: figures/compare

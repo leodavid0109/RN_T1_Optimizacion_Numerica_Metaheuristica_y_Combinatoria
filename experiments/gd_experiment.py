@@ -3,11 +3,12 @@
 Uso (desde la raíz del repositorio):
     python -m experiments.gd_experiment --config configs/gd_demo.yaml
     python -m experiments.gd_experiment --config configs/gd.yaml
+    python -m experiments.gd_experiment --config configs/gd_demo.yaml --set tasas_aprendizaje.rosenbrock=[0.0004]
 
-Salidas:
-    results/gd/runs.csv       una fila por (función, dimensión, tasa, semilla)
-    results/gd/summary.csv    estadísticas por (función, dimensión, tasa)
-    figures/gd/*.png, *.gif   convergencia, cajas, curvas de nivel y GIF (2D)
+Salidas (carpetas en `salidas:` del YAML; la demo escribe en results/gd_demo y figures/gd_demo):
+    <resultados>/runs.csv     una fila por (función, dimensión, tasa, semilla)
+    <resultados>/summary.csv  estadísticas por (función, dimensión, tasa)
+    <figuras>/*.png, *.gif    convergencia, cajas, curvas de nivel y GIF (2D)
 """
 from __future__ import annotations
 
@@ -16,8 +17,8 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import yaml
 
+from src.config import load_config
 from src.counter import CountedProblem
 from src.functions import make
 from src.gradient_descent import gradient_descent, initial_point
@@ -183,15 +184,20 @@ def make_figures(cfg, runs, summ, curves, figures_dir: Path) -> None:
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--config", default="configs/gd_demo.yaml")
-    ap.add_argument("--results", default="results/gd")
-    ap.add_argument("--figures", default="figures/gd")
+    ap.add_argument("--set", action="append", default=[], metavar="CLAVE=VALOR",
+                    help="cambia un parámetro del YAML, p. ej. --set n_runs=5 (se puede repetir)")
+    ap.add_argument("--results", help="carpeta de resultados (por defecto, salidas.resultados del YAML)")
+    ap.add_argument("--figures", help="carpeta de figuras (por defecto, salidas.figuras del YAML)")
     ap.add_argument("--no-figures", action="store_true")
     a = ap.parse_args(argv)
-    cfg = yaml.safe_load(open(a.config, encoding="utf-8"))
-    summ = run_experiment(cfg, Path(a.results), None if a.no_figures else Path(a.figures))
+    cfg = load_config(a.config, a.set)
+    salidas = cfg.get("salidas", {})
+    results = a.results or salidas.get("resultados", "results/gd")
+    figures = a.figures or salidas.get("figuras", "figures/gd")
+    summ = run_experiment(cfg, Path(results), None if a.no_figures else Path(figures))
     pd.set_option("display.width", 200, "display.max_columns", 20)
     print(summ.to_string(index=False, float_format=lambda v: f"{v:.3g}"))
-    print(f"\nResultados en {a.results}/ y figuras en {a.figures}/")
+    print(f"\nResultados en {results}/" + ("" if a.no_figures else f" y figuras en {figures}/"))
 
 
 if __name__ == "__main__":

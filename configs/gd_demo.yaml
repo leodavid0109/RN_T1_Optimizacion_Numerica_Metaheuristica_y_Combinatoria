@@ -12,3 +12,6 @@ tasas_aprendizaje:
 umbrales_exito: [0.0001, 0.01]
 puntos_curva: 100
 gif_semilla: 0
+salidas:                   # carpetas propias: la demo no pisa los resultados completos
+  resultados: results/gd_demo
+  figuras: figures/gd_demo
