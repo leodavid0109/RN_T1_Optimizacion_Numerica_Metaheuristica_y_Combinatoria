@@ -96,3 +96,4 @@ revisarlo a mano si cambian los resultados. Lo pendiente sale resaltado en amari
 - [Cacería de la alucinación](docs/alucinaciones.md)
 - [Fuentes de datos](data/fuentes.md)
 - [Fundamentos del módulo TSP](docs/tsp_fase1.md)
+- [Modelos duales del TSP](docs/tsp_modelo_dual.md)
