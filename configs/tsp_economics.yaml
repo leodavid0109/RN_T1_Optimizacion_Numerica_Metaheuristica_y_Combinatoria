@@ -1,0 +1,27 @@
+# Parámetros económicos versionables. El precio queda pendiente hasta extraerlo
+# directamente del archivo oficial del Weekly Oil Bulletin.
+study_reference_date: "2026-10-12"
+vehicle:
+  id: bmw-120-f70-48v-170cv
+  description: "BMW 120 Serie 1 F70, gasolina mild hybrid 48 V, 125 kW (170 CV)"
+  fuel: gasoline_95
+  consumption_l_per_100km:
+    low: 5.3
+    reference: 5.4
+    high: 5.5
+  consumption_basis: "Supuesto representativo: punto medio del intervalo WLTP oficial BMW 5.3–5.5; no homologación de una configuración específica."
+  source: "https://www.bmw.es/es/coches-bmw/serie-1/bmw-serie-1/datos-tecnicos-bmw-serie1.html"
+fuel_price:
+  eur_per_liter: null
+  fuel_grade: "Eurosuper 95"
+  tax_basis: "taxes_included"
+  source: "https://energy.ec.europa.eu/data-and-analysis/weekly-oil-bulletin_en"
+  publication_date: "2026-10-08"
+  acquired_on: null
+  study_reference_date: "2026-10-12"
+  source_unit: null
+  extraction_method: "Pendiente: leer fila España / Eurosuper 95 del XLSX oficial de precios con impuestos y normalizar según su unidad declarada."
+  status: pending_direct_source_verification
+cost_scope:
+  included: [seller_time, tolls, fuel]
+  excluded: [maintenance, insurance, depreciation]

@@ -7,12 +7,14 @@ from pathlib import Path
 
 from src.tsp.cities import CATALOG_PATH, load_city_catalog
 from src.tsp.etl.matrices import build_matrix_files
-from src.tsp.etl import RouteStore, load_etl_config
+from src.tsp.etl import RouteStore, apply_fuel_economics, load_etl_config, load_fuel_economics
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=Path("configs/tsp_etl.yaml"))
+    parser.add_argument("--economics-config", type=Path, default=Path("configs/tsp_economics.yaml"))
+    parser.add_argument("--fuel-scenario", choices=("low", "reference", "high"), default="reference")
     parser.add_argument("--store", type=Path)
     parser.add_argument("--raw-dir", type=Path)
     parser.add_argument("--output", type=Path)
@@ -21,10 +23,13 @@ def main() -> int:
     parser.add_argument("--hour-value", type=float)
     args = parser.parse_args()
     config = load_etl_config(args.config)
+    economics = load_fuel_economics(args.economics_config)
+    alternatives = RouteStore(args.store or config.route_catalog.parent,
+                              raw_dir=args.raw_dir or config.raw_responses).load_alternatives()
+    alternatives = apply_fuel_economics(alternatives, economics, scenario=args.fuel_scenario)
     report = build_matrix_files(
         load_city_catalog(args.catalog),
-        RouteStore(args.store or config.route_catalog.parent,
-                   raw_dir=args.raw_dir or config.raw_responses).load_alternatives(),
+        alternatives,
         args.output or config.matrices,
         mode=args.mode, hour_value_eur_per_hour=args.hour_value,
     )

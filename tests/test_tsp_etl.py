@@ -11,7 +11,8 @@ from src.tsp.cities import City, load_city_catalog
 from src.tsp.models import AlternativeTSPProblem
 from src.tsp.etl import (
     AcquisitionManager, AcquisitionRequest, OpenRouteServiceProvider, ProviderError,
-    RouteStore, build_matrix_files, load_etl_config, parse_ors_geojson, parse_ors_matrix,
+    RouteStore, apply_fuel_economics, build_matrix_files, load_etl_config, load_fuel_economics,
+    parse_ors_geojson, parse_ors_matrix,
 )
 from src.tsp.etl.matrices import load_complete_matrix
 
@@ -347,3 +348,34 @@ def test_project_etl_yaml_is_loaded_and_validated():
     assert config.standard_plan_daily_directions_limit == 2000
     assert config.standard_plan_daily_matrix_limit == 500
     assert config.raw_responses.as_posix() == "data/raw/routes"
+
+
+def test_project_fuel_config_and_sensitivity_keep_unverified_price_pending():
+    economics = load_fuel_economics()
+    assert [economics.consumption(case) for case in ("low", "reference", "high")] == [5.3, 5.4, 5.5]
+    assert economics.price_eur_per_liter is None
+    assert economics.price_status == "pending_direct_source_verification"
+
+
+def test_fuel_configuration_returns_copies_and_supports_sensitivity_without_fabricating_price():
+    from src.tsp.etl.economics import FuelEconomics
+
+    route = _alternative("x", "y", "fast")
+    values = {"low": 5.3, "reference": 5.4, "high": 5.5}
+    pending_config = FuelEconomics("test-car", "gasoline_95", values, "synthetic fixture",
+                                   "synthetic://consumption", None, "synthetic://price", "2026-10-08",
+                                   None, "2026-10-12", "pending_direct_source_verification")
+    pending = apply_fuel_economics((route,), pending_config)[0]
+    assert pending is not route
+    assert pending.fuel_cost_eur is None
+    assert route.fuel_consumption_l_per_100km is None
+
+    priced_config = FuelEconomics("test-car", "gasoline_95", values, "synthetic fixture",
+                                  "synthetic://consumption", 1.0, "synthetic://price", "2026-10-08",
+                                  "2026-10-12", "2026-10-12", "synthetic_test_only")
+    low = apply_fuel_economics((route,), priced_config, scenario="low")[0]
+    high = apply_fuel_economics((route,), priced_config, scenario="high")[0]
+    assert low.fuel_consumption_l_per_100km == 5.3
+    assert high.fuel_consumption_l_per_100km == 5.5
+    assert low.fuel_cost_eur < high.fuel_cost_eur
+    assert route.fuel_consumption_l_per_100km is None

@@ -17,6 +17,18 @@ El catálogo crudo no altera `RouteAlternative`, `AlternativeTSPProblem`, `TSPPr
 
 La clave de ORS se entrega solo mediante la variable de entorno `ORS_API_KEY`. El cliente nunca la agrega al manifiesto, a la URL ni al JSON guardado. El archivo `configs/tsp_etl.yaml` contiene parámetros no secretos que consumen los tres comandos ETL, incluida la tasa de consulta y un límite orientativo del plan Standard que debe cotejarse antes de cada adquisición; los flags pueden ajustarlos.
 
+En la revisión del 2026-10-12 la variable estaba **ausente**. Para cargarla solo en la sesión PowerShell actual, sin imprimirla en pantalla ni escribirla en el repositorio:
+
+```powershell
+$secure = Read-Host "Clave ORS" -AsSecureString
+$ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+try { $env:ORS_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr) }
+finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr) }
+Remove-Variable secure, ptr
+```
+
+La variable desaparece al cerrar esa sesión. No guardar el secreto en scripts, YAML, historial del repositorio o logs. Establecerla no ejecuta ninguna solicitud automáticamente.
+
 Planificar sin red (reemplazar los ids por cualquier arco válido del catálogo):
 
 ```powershell
@@ -56,6 +68,8 @@ Reconstrucción offline:
 ```powershell
 python -m experiments.build_tsp_matrices --mode fastest
 python -m experiments.build_tsp_matrices --mode economic --hour-value 25
+python -m experiments.build_tsp_matrices --mode fastest --fuel-scenario low
+python -m experiments.build_tsp_matrices --mode fastest --fuel-scenario high
 ```
 
 Con los datos actuales, estos comandos no generan datos ficticios: informan arcos ausentes y costes no verificables, guardan matrices de componentes con blancos para ausencias y omiten la matriz económica completa. El proceso de optimización no importa cliente de red ni consulta APIs.
@@ -82,7 +96,47 @@ La opción inicial para un piloto controlado es ORS, condicionada a revisar y ar
 
 El API entrega una geometría, no el importe de una concesión. La detección cartográfica puede señalar carreteras etiquetadas `toll`; la tarifa monetaria requiere identificar concesión, categoría ligera, accesos/salidas y tarifa vigente de la fuente oficial. Si esa correspondencia no se verifica, el estado queda `desconocido`; nunca se transforma en cero. La alternativa “avoid tollways” también se considera solamente candidata hasta inspeccionar toda la geometría.
 
-El combustible se calcula más adelante como `distancia_km / 100 × consumo_WLTP_l_100km × precio_EUR_l`. Faltan fijar el acabado/ruedas del BMW 120 F70 para un consumo único y consultar el histórico MITECO completo de Q3 2026. Mientras tanto, el costo no temporal de combustible queda vacío. No se convierte una cifra publicada en €/100 km a €/l sin consumo/precio fuente correctamente emparejados.
+El combustible se calcula como `distancia_km / 100 × consumo_l_100km × precio_EUR_l`. La configuración versionada está en `configs/tsp_economics.yaml`: BMW 120 Serie 1 F70 gasolina mild hybrid 48 V, 170 CV; 5,4 L/100 km como supuesto representativo (punto medio del rango BMW 5,3–5,5), con escenarios low/high 5,3/5,5. No se afirma que 5,4 sea la homologación de una variante concreta. El precio permanece `null` hasta verificar directamente el XLSX de la Comisión Europea del 2026-10-08; por eso el enriquecimiento offline deja combustible no verificable y no escribe un costo económico completo. No se confunde €/100 km con €/L, ni se incluyen mantenimiento, seguro o depreciación.
+
+El comando de reconstrucción aplica el escenario seleccionado sin modificar el catálogo persistido:
+
+```powershell
+python -m experiments.build_tsp_matrices --mode fastest --fuel-scenario reference
+python -m experiments.build_tsp_matrices --mode economic --hour-value 25 --fuel-scenario reference
+```
+
+`--fuel-scenario` acepta `low`, `reference` o `high`. Cambiar precio/consumo requiere editar el YAML con procedencia y fechas, no el código. Cada ejecución es local y offline.
+
+## Restricciones y piloto ORS revisados el 2026-10-12
+
+La documentación pública de ORS confirma:
+
+- Matrix admite 3.500 pares origen×destino por solicitud; una matriz 47×47 son 2.209 celdas incluyendo la diagonal y queda bajo ese límite público. El plan Standard publicado indica 500 llamadas Matrix/día y 40/minuto. La capacidad de Matrix de la cuenta concreta no puede consultarse porque `ORS_API_KEY` no está configurada.
+- Directions admite hasta 6.000 km para conducción, geometría GeoJSON en `/v2/directions/{profile}/geojson`, y `options.avoid_features=["tollways"]` para perfiles `driving-*`.
+- Las rutas con `alternatives` están limitadas a 100 km y hasta tres alternativas solicitadas. Por las distancias del piloto previo, este mecanismo no aplica a Bilbao–Zaragoza, Madrid–A Coruña ni Barcelona–Girona, y no promete enumeración exhaustiva. Para esos pares solo podría pedirse una Directions separada con `avoid_features` si no excede los límites generales; la salida debe verificarse en geometría y tarifa.
+
+La página de planes lista para Standard 2.000 Directions/día y 40/minuto; no equivale a cuota disponible hoy en una clave. Sin clave el presupuesto efectivo ejecutable es cero. Revisar el tablero de la cuenta justo antes del piloto; el tamaño de cuota listado no es un permiso para reproducir llamadas ya almacenadas.
+
+### Piloto de seis arcos, todavía no ejecutado en ORS
+
+Arcos canónicos: `madrid:toledo`, `toledo:madrid`, `bizkaia:zaragoza`, `zaragoza:bizkaia`, `madrid:a_coruna`, `barcelona:girona`.
+
+Plan de solicitud:
+
+1. Seis llamadas `POST https://api.openrouteservice.org/v2/directions/driving-car/geojson`, una por arco, con las coordenadas del catálogo IGN en orden `[lon, lat]`, geometry y preferencia normal/rápida.
+2. Opcionalmente, seis llamadas adicionales al mismo endpoint para los mismos arcos con `options: {"avoid_features":["tollways"]}`. Esto solicita una candidata cartográficamente encaminada evitando clases marcadas como toll; no certifica tarifa cero.
+3. No se piden `alternative_routes` en este piloto por las limitaciones de 100 km y porque la API no enumera exhaustivamente las rutas.
+
+Máximo presupuestado si se aprueban ambos lotes: **12 llamadas Directions** (6 rápidas + 6 con evitación). No se usa Matrix en este piloto específico. Los comandos de planificación, sin `--execute`, son:
+
+```powershell
+python -m experiments.acquire_tsp_routes --pairs madrid:toledo,toledo:madrid,bizkaia:zaragoza,zaragoza:bizkaia,madrid:a_coruna,barcelona:girona --strategy fastest --max-requests 6
+python -m experiments.acquire_tsp_routes --pairs madrid:toledo,toledo:madrid,bizkaia:zaragoza,zaragoza:bizkaia,madrid:a_coruna,barcelona:girona --strategy avoid_tolls --max-requests 6
+```
+
+Al planificar sin ejecución el cliente no necesita clave ni abre conexión. Se recomienda ejecutar en dos lotes para que el equipo pueda aprobar uno o ambos presupuestos por separado. Por cada ejecución, el almacenamiento actual escribe el catálogo incremental `data/processed/routes/route_alternatives.csv`, estado `data/processed/routes/acquisition_state.json` y una respuesta cruda JSON por solicitud bajo `data/raw/routes/`. Las matrices se regeneran después con el constructor offline.
+
+La página del boletín de la Comisión identifica el XLSX “Prices with taxes latest prices” del 8 de octubre de 2026. En esta sesión no se pudo obtener el archivo desde el entorno (fallo de conexión/resolución) y no se leyó su unidad/fila España. La fuente permite reutilización CC BY 4.0 salvo nota distinta; confirmar el aviso específico del XLSX y registrar la fecha real y hash al adquirirlo. Un valor encontrado en un agregador secundario no se incorpora a la configuración.
 
 El API reporta tiempos de perfil, no mediciones futuras ni tiempos de tráfico para una hora de salida. Puede cambiar el resultado con actualización del proveedor o de OSM. Se registra adquisición y perfil; cuando la API no exponga versión de grafo, se conserva expresamente como no informada y se guardan respuesta y petición bajo la licencia aplicable.
 
