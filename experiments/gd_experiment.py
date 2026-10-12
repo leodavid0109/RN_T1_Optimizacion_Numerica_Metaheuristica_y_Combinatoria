@@ -61,9 +61,10 @@ def run_experiment(cfg: dict, results_dir: Path, figures_dir: Path | None = None
                     gap = max(r.best_f - p.f_opt, 0.0)
                     row = dict(funcion=name, dim=n, lr=lr, seed=seed, best_f=r.best_f, gap=gap,
                                f_evals=r.f_evals, grad_evals=r.grad_evals,
-                               equiv_evals=p.equivalent_evals(gc), stop=r.stop_reason)
+                               equiv_evals=p.equivalent_evals(gc),
+                               equiv_evals_2n=p.equivalent_evals(2 * n), stop=r.stop_reason)
                     for u in umbrales:
-                        row[f"exito_{u:g}"] = bool(gap < u)
+                        row[f"exito_{u:g}"] = bool(gap <= u)
                     rows.append(row)
                     mat.append(_on_grid(r.history_evals, [max(f - p.f_opt, 0.0) for f in r.history_f], grid))
                 curves[(name, n, lr)] = (grid, np.array(mat))
@@ -72,13 +73,15 @@ def run_experiment(cfg: dict, results_dir: Path, figures_dir: Path | None = None
     runs.to_csv(results_dir / "runs.csv", index=False)
 
     ex_cols = [f"exito_{u:g}" for u in umbrales]
-    agg = {"best_f": ["mean", "std", "min", "max", "median"], "equiv_evals": "mean"}
+    agg = {"best_f": ["mean", "std", "min", "max", "median"], "equiv_evals": "mean",
+           "equiv_evals_2n": "mean"}
     agg.update({c: "mean" for c in ex_cols})
     summ = runs.groupby(["funcion", "dim", "lr"]).agg(agg)
     summ.columns = ["_".join(c) if c[1] else c[0] for c in summ.columns]
     summ = summ.rename(columns={
         "best_f_mean": "media", "best_f_std": "desv", "best_f_min": "mejor", "best_f_max": "peor",
         "best_f_median": "mediana", "equiv_evals_mean": "evals_equiv_medias",
+        "equiv_evals_2n_mean": "evals_equiv_2n_medias",
         **{f"{c}_mean": f"tasa_{c}" for c in ex_cols}}).reset_index()
     # tasa seleccionada por (función, dimensión): menor mediana de f final (4 cifras significativas);
     # en empate, la que gasta menos evaluaciones y, si persiste, la menor tasa

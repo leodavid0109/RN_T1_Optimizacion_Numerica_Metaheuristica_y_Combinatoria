@@ -52,6 +52,11 @@ Salidas: `results/gd/runs.csv` (una fila por corrida), `results/gd/summary.csv` 
 mejor, peor y tasa de éxito por tasa de aprendizaje) y `figures/gd/` (convergencia, cajas,
 curvas de nivel y GIF en 2D). Los parámetros (presupuesto, tasas, umbrales) están en `configs/gd.yaml`.
 
+Conteo de evaluaciones (ver [decisiones](docs/decisiones.md)): `runs.csv` reporta `f_evals` y
+`grad_evals` por separado, más dos totales: `equiv_evals` (gradiente analítico = 1 evaluación; es el
+que se compara con el presupuesto) y `equiv_evals_2n` (gradiente por diferencias centrales = 2n).
+Una corrida es exitosa si f − f* ≤ umbral (`exito_0.0001` principal, `exito_0.01` secundario).
+
 ## Documentación del equipo
 
 - [Decisiones](docs/decisiones.md)

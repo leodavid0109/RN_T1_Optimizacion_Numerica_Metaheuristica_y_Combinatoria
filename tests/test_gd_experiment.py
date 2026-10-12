@@ -47,3 +47,14 @@ def test_desempate_elige_la_tasa_que_gasta_menos_evaluaciones(tmp_path):
     # y la tasa 3e-3 gasta menos evaluaciones, por lo que debe ser la elegida
     assert s.loc[3e-3, "evals_equiv_medias"] < s.loc[1e-3, "evals_equiv_medias"]
     assert s.loc[3e-3, "seleccionada"] and not s.loc[1e-3, "seleccionada"]
+
+
+def test_dos_totales_de_evaluaciones_y_exito_inclusivo(tmp_path):
+    """Decisiones de la Parte 1: totales con costo del gradiente 1 y 2n; éxito si f - f* <= umbral."""
+    s = run_experiment(CFG, tmp_path)
+    runs = pd.read_csv(tmp_path / "runs.csv")
+    assert (runs.equiv_evals == runs.f_evals + runs.grad_evals).all()
+    assert (runs.equiv_evals_2n == runs.f_evals + 2 * runs.dim * runs.grad_evals).all()
+    assert "evals_equiv_2n_medias" in s.columns
+    for u in CFG["umbrales_exito"]:
+        assert (runs[f"exito_{u:g}"] == (runs.gap <= u)).all()
