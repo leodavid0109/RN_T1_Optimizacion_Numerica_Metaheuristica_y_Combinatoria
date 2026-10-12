@@ -23,6 +23,7 @@ class RouteCost:
     toll_cost_eur: float
     fuel_cost_eur: float
     total_cost_eur: float
+    selected_alternative_ids: tuple[str, ...] = ()
 
 
 class TSPProblem:
@@ -50,6 +51,7 @@ class TSPProblem:
         self.toll_cost_eur = validate_matrix(toll_cost_eur, self.size, "peajes (EUR)")
         self.fuel_cost_eur = validate_matrix(fuel_cost_eur, self.size, "combustible (EUR)")
         self._hour_value_eur_per_hour = self._validate_hour_value(hour_value_eur_per_hour)
+        self.model_name = "fixed_matrix"
 
     @property
     def hour_value_eur_per_hour(self) -> float:
@@ -103,3 +105,15 @@ class TSPProblem:
             fuel_cost_eur=fuel,
             total_cost_eur=labor + tolls + fuel,
         )
+
+    @property
+    def cost_matrix_eur(self) -> np.ndarray:
+        """Matriz dirigida efectiva para el valor horario configurado."""
+        return self.cost_matrix_for_hour(self.hour_value_eur_per_hour)
+
+    def cost_matrix_for_hour(self, hour_value_eur_per_hour: float) -> np.ndarray:
+        """Crea una vista de costos sin modificar las matrices de componentes."""
+        value = self._validate_hour_value(hour_value_eur_per_hour)
+        costs = value * self.time_hours + self.toll_cost_eur + self.fuel_cost_eur
+        costs.setflags(write=False)
+        return costs

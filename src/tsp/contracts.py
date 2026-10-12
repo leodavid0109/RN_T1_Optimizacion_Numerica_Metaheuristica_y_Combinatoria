@@ -7,7 +7,9 @@ from math import isfinite
 from numbers import Integral
 from typing import Protocol, Sequence
 
-from .problem import RouteCost, TSPProblem
+import numpy as np
+
+from .problem import RouteCost
 
 
 @dataclass(frozen=True)
@@ -63,12 +65,31 @@ class TSPRunResult:
             raise ValueError("best_breakdown y best_cost_eur no coinciden")
 
 
+class TSPObjective(Protocol):
+    """Interfaz estructural consumida por algoritmos y contadores TSP."""
+
+    size: int
+    model_name: str
+    hour_value_eur_per_hour: float
+    cost_matrix_eur: np.ndarray
+
+    def evaluate_route(
+        self, route: Sequence[int], hour_value_eur_per_hour: float | None = None
+    ) -> RouteCost:
+        """Evalúa un ciclo completo con el desglose de costos común."""
+        ...
+
+    def cost_matrix_for_hour(self, hour_value_eur_per_hour: float) -> np.ndarray:
+        """Devuelve una matriz dirigida e inmutable para el valor horario indicado."""
+        ...
+
+
 class TSPAlgorithm(Protocol):
     """Interfaz común que implementarán ACO, GA y futuros baselines."""
 
     def run(
         self,
-        problem: TSPProblem,
+        problem: TSPObjective,
         seed: int,
         budget: int,
         **params,
