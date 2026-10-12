@@ -1,0 +1,48 @@
+city_id,name,province,latitude,longitude,source_url,consulted_on,coordinate_status,representative_point_definition
+alava,Vitoria-Gasteiz,Araba/Álava,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+albacete,Albacete,Albacete,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+alicante,Alicante/Alacant,Alicante/Alacant,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+almeria,Almería,Almería,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+asturias,Oviedo,Asturias,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+avila,Ávila,Ávila,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+badajoz,Badajoz,Badajoz,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+barcelona,Barcelona,Barcelona,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+burgos,Burgos,Burgos,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+caceres,Cáceres,Cáceres,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+cadiz,Cádiz,Cádiz,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+cantabria,Santander,Cantabria,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+castellon,Castelló de la Plana,Castellón/Castelló,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+ciudad_real,Ciudad Real,Ciudad Real,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+cordoba,Córdoba,Córdoba,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+cuenca,Cuenca,Cuenca,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+girona,Girona,Girona,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+granada,Granada,Granada,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+guadalajara,Guadalajara,Guadalajara,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+gipuzkoa,Donostia / San Sebastián,Gipuzkoa,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+huelva,Huelva,Huelva,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+huesca,Huesca,Huesca,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+jaen,Jaén,Jaén,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+a_coruna,A Coruña,A Coruña,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+la_rioja,Logroño,La Rioja,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+leon,León,León,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+lleida,Lleida,Lleida,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+lugo,Lugo,Lugo,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+madrid,Madrid,Madrid,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+malaga,Málaga,Málaga,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+murcia,Murcia,Murcia,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+navarra,Pamplona/Iruña,Navarra,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+ourense,Ourense,Ourense,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+palencia,Palencia,Palencia,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+pontevedra,Pontevedra,Pontevedra,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+salamanca,Salamanca,Salamanca,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+segovia,Segovia,Segovia,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+sevilla,Sevilla,Sevilla,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+soria,Soria,Soria,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+tarragona,Tarragona,Tarragona,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+teruel,Teruel,Teruel,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+toledo,Toledo,Toledo,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+valencia,Valencia/València,Valencia/València,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+valladolid,Valladolid,Valladolid,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+bizkaia,Bilbao,Bizkaia,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+zamora,Zamora,Zamora,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion
+zaragoza,Zaragoza,Zaragoza,,,https://www.ign.es/web/resources/docs/IGNCnig/RE-Mapa-Espana-Politico.pdf,2026-10-12,pendiente,pendiente_de_seleccion_y_verificacion

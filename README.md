@@ -83,3 +83,4 @@ se registra en `src/methods.py` y se agregan sus hiperparámetros en `metodos:` 
 - [Decisiones](docs/decisiones.md)
 - [Cacería de la alucinación](docs/alucinaciones.md)
 - [Fuentes de datos](data/fuentes.md)
+- [Fundamentos del módulo TSP](docs/tsp_fase1.md)
