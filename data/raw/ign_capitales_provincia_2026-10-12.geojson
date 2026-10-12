@@ -1,0 +1,984 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Almería",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721272",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -2.46413188,
+          36.83892362
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Cádiz",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721273",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -6.28414575,
+          36.52171152
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Córdoba",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721274",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -4.78032455,
+          37.87954225
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Granada",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721275",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -3.60001883,
+          37.17641932
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Huelva",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721276",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -6.95040588,
+          37.26004113
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Jaén",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721277",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -3.7903594,
+          37.7651913
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Málaga",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721278",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -4.41997511,
+          36.72034267
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Sevilla",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721279",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -5.99251368,
+          37.38620512
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Huesca",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721280",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.40842276,
+          42.14062739
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Teruel",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721281",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -1.10927177,
+          40.34412951
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Zaragoza",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721282",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.87928652,
+          41.65645655
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Las Palmas de Gran Canaria",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721283",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -15.41336841,
+          28.09937855
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Santa Cruz de Tenerife",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721284",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -16.24720629,
+          28.46285408
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Santander",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721285",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -3.809722222,
+          43.46216667
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Ávila",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721286",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -4.69771277,
+          40.65586958
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Burgos",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721287",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -3.70419805,
+          42.34113004
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "León",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721288",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -5.56707631,
+          42.59912097
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Palencia",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721289",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -4.53460106,
+          42.0078373
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Salamanca",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721290",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -5.66538084,
+          40.96736822
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Segovia",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721291",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -4.12524116,
+          40.9498703
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Soria",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721292",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -2.46624798,
+          41.76327912
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Valladolid",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721293",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -4.72334924,
+          41.65232777
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Zamora",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721294",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -5.75494831,
+          41.49913956
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Albacete",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721295",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -1.85574745,
+          38.99588053
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Ciudad Real",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721296",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -3.93131981,
+          38.98651781
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Cuenca",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721297",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -2.13152306,
+          40.07653762
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Guadalajara",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721298",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -3.16210273,
+          40.63435548
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Toledo",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721299",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -4.024974933,
+          39.8565219
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Barcelona",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721300",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          2.17634927,
+          41.38424664
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Girona",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721301",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          2.82411899,
+          41.98186075
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Lleida",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721302",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.62061934,
+          41.61527355
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Tarragona",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721303",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          1.2584219,
+          41.11910287
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Madrid",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721306",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -3.68760088,
+          40.40841191
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Pamplona",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721307",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -1.6451528,
+          42.814102
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Alacant",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721308",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.4831832,
+          38.34548705
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "València",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721309",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.37565717,
+          39.47534441
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Castellón de la Plana",
+        "tipo": "Capital de provincia",
+        "tiponombre": "nombre_alternativo_2",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721310",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.03688142,
+          39.98640809
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Badajoz",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721311",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -6.97099704,
+          38.87874339
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Cáceres",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721312",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -6.37121092,
+          39.47316762
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "A Coruña",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721313",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -8.395501936,
+          43.37126587
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Lugo",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721314",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -7.555755439,
+          43.00988951
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Ourense",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721315",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -7.863836656,
+          42.33553117
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Pontevedra",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721316",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -8.643672092,
+          42.43158576
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Palma",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721317",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          2.65181698,
+          39.57114699
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Logroño",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721318",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -2.44565538,
+          42.46644945
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Vitoria-Gasteiz",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-09-09"
+      },
+      "id": "2721319",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -2.67275685,
+          42.85058789
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "San Sebastián",
+        "tipo": "Capital de provincia",
+        "tiponombre": "nombre_alternativo_2",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721320",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -1.98191785,
+          43.31717158
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Bilbao",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-09-09"
+      },
+      "id": "2721321",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -2.916687406,
+          43.25012231
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Oviedo",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721322",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -5.84372206,
+          43.36232165
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo_ngbe": "2.1.2",
+        "fuente": "MAETD.REL",
+        "etiqueta": "Murcia",
+        "tipo": "Capital de provincia",
+        "tiponombre": "identificador_geografico",
+        "fecha": "2025-01-31"
+      },
+      "id": "2721323",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -1.1285408,
+          37.98436361
+        ]
+      }
+    }
+  ],
+  "numberMatched": 54,
+  "numberReturned": 50,
+  "links": [
+    {
+      "type": "application/geo+json",
+      "rel": "self",
+      "title": "This document as GeoJSON",
+      "href": "https://api-features.ign.es/collections/namedplace/items?f=json&filter=tipo%20%3D%20%27Capital%20de%20provincia%27&filter-lang=cql-text&limit=100"
+    },
+    {
+      "rel": "alternate",
+      "type": "application/ld+json",
+      "title": "This document as RDF (JSON-LD)",
+      "href": "https://api-features.ign.es/collections/namedplace/items?f=jsonld&filter=tipo%20%3D%20%27Capital%20de%20provincia%27&filter-lang=cql-text&limit=100"
+    },
+    {
+      "type": "text/html",
+      "rel": "alternate",
+      "title": "This document as HTML",
+      "href": "https://api-features.ign.es/collections/namedplace/items?f=html&filter=tipo%20%3D%20%27Capital%20de%20provincia%27&filter-lang=cql-text&limit=100"
+    },
+    {
+      "type": "application/json",
+      "title": "GN Lugar nombrado",
+      "rel": "collection",
+      "href": "https://api-features.ign.es/collections/namedplace"
+    }
+  ],
+  "timeStamp": "2026-10-12T17:22:49.7368Z"
+}
