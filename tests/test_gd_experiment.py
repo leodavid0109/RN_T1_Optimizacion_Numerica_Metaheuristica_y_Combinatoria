@@ -31,3 +31,19 @@ def test_figuras(tmp_path):
     run_experiment(CFG, tmp_path / "r", tmp_path / "f")
     names = {p.name for p in (tmp_path / "f").iterdir()}
     assert {"gd_convergencia.png", "gd_cajas.png", "gd_rosenbrock.gif", "gd_rastrigin.gif"} <= names
+
+
+def test_desempate_elige_la_tasa_que_gasta_menos_evaluaciones(tmp_path):
+    """Hallazgo H-03: con la misma mediana de f final, no se debe elegir la tasa más cara."""
+    cfg = {
+        "funciones": ["rastrigin"], "dimensiones": [2], "n_runs": 6,
+        "presupuesto": {2: 200}, "grad_cost": 1.0,
+        "tasas_aprendizaje": {"rastrigin": [1e-3, 3e-3]},
+        "umbrales_exito": [1e-4, 1e-2], "puntos_curva": 10,
+    }
+    s = run_experiment(cfg, tmp_path).set_index("lr")
+    # condición de empate: ambas tasas terminan en la misma mediana (a 4 cifras significativas)
+    assert float(f"{s.loc[1e-3, 'mediana']:.4g}") == float(f"{s.loc[3e-3, 'mediana']:.4g}")
+    # y la tasa 3e-3 gasta menos evaluaciones, por lo que debe ser la elegida
+    assert s.loc[3e-3, "evals_equiv_medias"] < s.loc[1e-3, "evals_equiv_medias"]
+    assert s.loc[3e-3, "seleccionada"] and not s.loc[1e-3, "seleccionada"]
