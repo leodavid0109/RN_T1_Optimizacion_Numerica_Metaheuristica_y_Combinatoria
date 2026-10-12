@@ -44,7 +44,7 @@ $ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
 try { $env:ORS_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr) }
 finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr) }
 python -m experiments.acquire_tsp_routes --pairs madrid:toledo,toledo:madrid `
-  --strategy fastest --max-requests 2 --execute
+  --strategy fastest --max-requests 2 --max-http-requests 2 --execute
 ```
 
 Plan de una matriz pequeña y solicitud real, si se autoriza. `--max-cells` cuenta N², incluida la diagonal; `--city-ids` fija el orden del CSV:
@@ -61,7 +61,7 @@ Agregar un candidato que evite vías etiquetadas como peaje requiere una consult
 
 ```powershell
 python -m experiments.acquire_tsp_routes --pairs madrid:toledo `
-  --strategy avoid_tolls --max-requests 1 --execute
+  --strategy avoid_tolls --max-requests 1 --max-http-requests 1 --execute
 ```
 
 La opción de evitar peajes solo solicita una ruta candidata según atributos cartográficos; no prueba que el trayecto esté libre de peaje ni asigna una tarifa. `--refresh` vuelve a consultar explícitamente el registro. Para minimizar mezclas de versiones de red, una actualización debe regenerar de forma coordinada los registros rápidos y alternativos de un conjunto experimental.
@@ -136,6 +136,8 @@ Máximo presupuestado si se aprueban ambos lotes: **12 llamadas Directions** (6 
 python -m experiments.acquire_tsp_routes --pairs madrid:toledo,toledo:madrid,bizkaia:zaragoza,zaragoza:bizkaia,madrid:a_coruna,barcelona:girona --strategy fastest --max-requests 6
 python -m experiments.acquire_tsp_routes --pairs madrid:toledo,toledo:madrid,bizkaia:zaragoza,zaragoza:bizkaia,madrid:a_coruna,barcelona:girona --strategy avoid_tolls --max-requests 6
 ```
+
+Para habilitar la ejecución, cada lote debe declarar además `--max-http-requests 6 --execute`. Ese límite cuenta cada intento real, incluidos los reintentos de transporte y HTTP; no se reinicia dentro de un lote. `.gitignore` excluye el catálogo, el estado y las respuestas crudas de estas carpetas mientras sus condiciones de redistribución no estén aclaradas.
 
 Al planificar sin ejecución el cliente no necesita clave ni abre conexión. Se recomienda ejecutar en dos lotes para que el equipo pueda aprobar uno o ambos presupuestos por separado. Por cada ejecución, el almacenamiento actual escribe el catálogo incremental `data/processed/routes/route_alternatives.csv`, estado `data/processed/routes/acquisition_state.json` y una respuesta cruda JSON por solicitud bajo `data/raw/routes/`. Las matrices se regeneran después con el constructor offline.
 

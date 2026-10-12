@@ -14,3 +14,9 @@ node_modules/
 
 # el informe se edita en Google Docs; el .docx generado es solo local
 docs/Informe_Parte1.docx
+
+# Respuestas de proveedores y matrices derivadas: almacenamiento local mientras
+# se aclaran las condiciones de redistribución.
+data/raw/routes/
+data/processed/routes/
+data/processed/matrices/

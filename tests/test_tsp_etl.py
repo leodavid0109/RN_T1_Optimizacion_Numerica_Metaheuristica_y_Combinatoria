@@ -204,6 +204,42 @@ def test_ors_retries_429_with_retry_after_and_rejects_auth_without_retry():
         provider._post("https://fixture.invalid", {})
 
 
+def test_ors_http_budget_counts_retries_and_prevents_extra_transport_calls():
+    calls = []
+    responses = [
+        type("Response", (), {"status": 429, "headers": {"Retry-After": "0"},
+                              "read": lambda self: b"", "__enter__": lambda self: self,
+                              "__exit__": lambda self, *args: False})(),
+        type("Response", (), {"status": 429, "headers": {"Retry-After": "0"},
+                              "read": lambda self: b"", "__enter__": lambda self: self,
+                              "__exit__": lambda self, *args: False})(),
+    ]
+
+    def opener(*args, **kwargs):
+        calls.append(args[0])
+        return responses.pop(0)
+
+    provider = OpenRouteServiceProvider("synthetic-test-key", opener=opener,
+                                        max_http_requests=2, max_retries=3,
+                                        min_interval_seconds=0, sleep=lambda _: None)
+    with pytest.raises(ProviderError, match="presupuesto total"):
+        provider._post("https://fixture.invalid", {})
+    assert len(calls) == 2
+    assert provider.http_requests_made == 2
+
+
+def test_route_acquisition_requires_http_budget_when_execution_is_enabled():
+    from experiments.acquire_tsp_routes import main
+
+    argv = ["acquire_tsp_routes", "--pairs", "madrid:toledo", "--strategy", "fastest",
+            "--max-requests", "1", "--execute"]
+    with pytest.raises(SystemExit) as error:
+        with pytest.MonkeyPatch.context() as patch:
+            patch.setattr("sys.argv", argv)
+            main()
+    assert error.value.code == 2
+
+
 class _FakeHttpResponse:
     status = 200
     headers = {}

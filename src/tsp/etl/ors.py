@@ -34,6 +34,7 @@ class OpenRouteServiceProvider:
         endpoint: str = "https://api.openrouteservice.org/v2/directions",
         timeout_seconds: float = 30.0,
         max_retries: int = 3,
+        max_http_requests: int | None = None,
         min_interval_seconds: float = 1.5,
         opener: Callable = urlopen,
         sleep: Callable[[float], None] = time.sleep,
@@ -45,11 +46,14 @@ class OpenRouteServiceProvider:
         self.endpoint = endpoint.rstrip("/")
         self.timeout_seconds = timeout_seconds
         self.max_retries = max_retries
+        self.max_http_requests = max_http_requests
+        self.http_requests_made = 0
         self.min_interval_seconds = min_interval_seconds
         self.opener, self.sleep, self.clock = opener, sleep, clock
         self.today = today or (lambda: datetime.now(timezone.utc).date().isoformat())
         self._last_request_at: float | None = None
-        if self.timeout_seconds <= 0 or self.max_retries < 0 or self.min_interval_seconds < 0:
+        if (self.timeout_seconds <= 0 or self.max_retries < 0 or self.min_interval_seconds < 0
+                or (max_http_requests is not None and max_http_requests < 1)):
             raise ValueError("timeout, reintentos o intervalo de consulta no válido")
 
     @property
@@ -128,6 +132,11 @@ class OpenRouteServiceProvider:
                 headers={"Authorization": self.api_key or "", "Content-Type": "application/json"},
                 method="POST",
             )
+            if (self.max_http_requests is not None
+                    and self.http_requests_made >= self.max_http_requests):
+                raise ProviderError("se agotó el presupuesto total de solicitudes HTTP")
+            # Cuenta cada intento, incluso fallos de transporte y reintentos.
+            self.http_requests_made += 1
             self._last_request_at = self.clock()
             try:
                 with self.opener(request, timeout=self.timeout_seconds) as response:

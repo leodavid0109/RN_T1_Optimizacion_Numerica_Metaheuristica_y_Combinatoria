@@ -75,6 +75,7 @@ class AcquisitionSummary:
     acquired: int
     skipped_existing: int
     failed: int
+    http_requests: int = 0
 
 
 class AcquisitionManager:
@@ -96,6 +97,7 @@ class AcquisitionManager:
     ) -> AcquisitionSummary:
         if max_requests < 0:
             raise ValueError("max_requests no puede ser negativo")
+        attempts_before = int(getattr(self.provider, "http_requests_made", 0))
         original_count = len(requests)
         namespace = getattr(self.provider, "cache_namespace",
                             f"{self.provider.provider_name}:{getattr(self.provider, 'profile', '')}")
@@ -133,4 +135,5 @@ class AcquisitionManager:
                 # No registrar cuerpo de excepción ni cabeceras: podrían incluir datos sensibles.
                 self.store.save_failure(request_id, type(exc).__name__)
                 failed += 1
-        return AcquisitionSummary(original_count, acquired, skipped, failed)
+        return AcquisitionSummary(original_count, acquired, skipped, failed,
+                                  int(getattr(self.provider, "http_requests_made", 0)) - attempts_before)
