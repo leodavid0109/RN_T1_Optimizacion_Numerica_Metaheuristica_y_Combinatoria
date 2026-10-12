@@ -8,7 +8,7 @@ presupuesto:               # evaluaciones equivalentes (f + grad_cost * grad)
   3: 40000
 grad_cost: 1.0             # una evaluación de gradiente analítico cuenta como grad_cost evaluaciones de f
 tasas_aprendizaje:         # barrido del paso fijo
-  rosenbrock: [0.00001, 0.00005, 0.0001, 0.0002]
+  rosenbrock: [0.00001, 0.00005, 0.0001, 0.0002, 0.0003, 0.0004, 0.0007, 0.001]  # desde ~3e-4 diverge contra el borde
   rastrigin: [0.0001, 0.001, 0.003]    # el paso debe ser < 2/397 ~ 0.005 (curvatura en el óptimo)
 umbrales_exito: [0.0001, 0.01]         # éxito si f - f_opt <= umbral
 puntos_curva: 200
