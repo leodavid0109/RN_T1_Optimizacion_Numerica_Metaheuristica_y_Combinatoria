@@ -14,8 +14,10 @@ metodos:                   # hiperparámetros por método y función
   gd:                      # tasas elegidas en results/gd/summary.csv
     rosenbrock: {lr: 0.0002}
     rastrigin: {lr: 0.003}
+  pso:                     # valores del integrante 2 (configs/compare_demo.yaml); falta su barrido
+    rosenbrock: {n_particles: 30, c1: 0.8, c2: 0.4, w: 0.1}
+    rastrigin: {n_particles: 30, c1: 0.8, c2: 0.4, w: 0.1}
   # ea:  {rosenbrock: {...}, rastrigin: {...}}   (integrante 2)
-  # pso: {rosenbrock: {...}, rastrigin: {...}}
   # de:  {rosenbrock: {...}, rastrigin: {...}}
 salidas:
   resultados: results/compare
