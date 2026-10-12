@@ -1,23 +1,10 @@
 """Descenso por gradiente con paso fijo, proyección al dominio y presupuesto de evaluaciones."""
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-
 import numpy as np
 
 from .counter import CountedProblem
-
-
-@dataclass
-class RunResult:
-    best_x: np.ndarray
-    best_f: float
-    f_evals: int
-    grad_evals: int
-    history_f: list = field(default_factory=list)   # mejor f tras cada iteración
-    history_x: list = field(default_factory=list)   # trayectoria (para GIF)
-    history_evals: list = field(default_factory=list)  # evaluaciones equivalentes acumuladas
-    stop_reason: str = ""
+from .result import RunResult  # noqa: F401  (se reexporta: antes vivía aquí)
 
 
 def initial_point(problem: CountedProblem, seed: int) -> np.ndarray:
@@ -71,3 +58,10 @@ def gradient_descent(
     res.f_evals, res.grad_evals = problem.f_evals, problem.grad_evals
     res.stop_reason = reason
     return res
+
+
+def run_gd(problem: CountedProblem, seed: int, budget: float, grad_cost: float = 1.0,
+           lr: float = 1e-4, numeric: bool = False) -> RunResult:
+    """Descenso por gradiente con la firma del formato común (ver src/result.py)."""
+    return gradient_descent(problem, initial_point(problem, seed), lr=lr, max_iters=10**9,
+                            budget=budget, grad_cost=grad_cost, grad_tol=1e-12, numeric=numeric)
