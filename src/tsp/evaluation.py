@@ -5,8 +5,8 @@ from __future__ import annotations
 from numbers import Integral
 from typing import Sequence
 
-from .contracts import ConvergencePoint, TSPRunResult
-from .problem import RouteCost, TSPProblem
+from .contracts import ConvergencePoint, TSPObjective, TSPRunResult
+from .problem import RouteCost
 
 
 class EvaluationBudgetExceeded(RuntimeError):
@@ -21,7 +21,7 @@ class RunEvaluator:
     presupuesto, que mide únicamente llamadas completas a la función objetivo.
     """
 
-    def __init__(self, problem: TSPProblem, budget: int) -> None:
+    def __init__(self, problem: TSPObjective, budget: int) -> None:
         if not isinstance(budget, Integral) or isinstance(budget, bool) or budget < 1:
             raise ValueError("budget debe ser un entero positivo de evaluaciones completas")
         self.problem = problem
