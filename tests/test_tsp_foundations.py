@@ -51,7 +51,8 @@ def test_coordenadas_presentes_en_rango_y_pendientes_explicitas():
 
 def test_catalogo_rechaza_latitud_o_longitud_incompleta():
     cities = list(load_city_catalog())
-    cities[0] = City(**{**cities[0].__dict__, "latitude": 42.0})
+    # Mantener este caso independiente de que el catálogo real ya tenga ambas coordenadas.
+    cities[0] = City(**{**cities[0].__dict__, "longitude": None})
     with pytest.raises(ValueError, match="incompletas"):
         validate_city_catalog(cities)
 
