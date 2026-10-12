@@ -78,8 +78,9 @@ que también trae `check_result` para probar el contrato). Para sumar un método
 se registra en `src/methods.py` y se agregan sus hiperparámetros en `metodos:` de
 `configs/compare.yaml`.
 
-Informe de la Parte 1 (`docs/Informe_Parte1.docx`): se genera desde `results/` y `figures/` con Node
-(requiere haber corrido antes los experimentos completos):
+Informe de la Parte 1: la versión de trabajo está en el Google Docs compartido del equipo. El borrador
+inicial (`docs/Informe_Parte1.docx`, ignorado por git) se genera desde `results/` y `figures/` con Node
+(requiere haber corrido antes los experimentos completos); sirve para sacar las tablas actualizadas:
 
 ```bash
 npm --prefix informe install    # una sola vez
