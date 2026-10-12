@@ -13,3 +13,11 @@ METHODS = {
     # "pso": run_pso,  # enjambre de partículas (integrante 2)
     # "de": run_de,    # evolución diferencial (integrante 2)
 }
+
+
+from .particle_swarm import run_pso
+
+METHODS = {
+    "gd": run_gd,
+    "pso": run_pso,
+}

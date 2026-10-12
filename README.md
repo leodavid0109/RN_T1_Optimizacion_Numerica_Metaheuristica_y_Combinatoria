@@ -4,7 +4,7 @@ Redes Neuronales y Algoritmos Bioinspirados · UNAL, Facultad de Minas · 2026-0
 
 ## Integrantes
 - Leonard David Vivas Dallos
-- Integrante 2
+- José Nicolás Duque Linares
 - Integrante 3
 
 ## Contenido

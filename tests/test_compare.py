@@ -36,8 +36,17 @@ def test_reproducible(tmp_path):
 
 
 def test_metodo_sin_registrar_da_error_claro(tmp_path):
-    with pytest.raises(ValueError, match="pso"):
-        run_comparison({**CFG, "metodos": {**CFG["metodos"], "pso": {}}}, tmp_path)
+    with pytest.raises(ValueError, match="metodo_inexistente"):
+        run_comparison(
+            {
+                **CFG,
+                "metodos": {
+                    **CFG["metodos"],
+                    "metodo_inexistente": {},
+                },
+            },
+            tmp_path,
+        )
 
 
 def test_figuras(tmp_path):

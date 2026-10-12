@@ -8,10 +8,24 @@ presupuesto:
 grad_cost: 1.0
 umbrales_exito: [0.0001, 0.01]
 puntos_curva: 100
+
 metodos:
   gd:
     rosenbrock: {lr: 0.0002}
     rastrigin: {lr: 0.003}
+
+  pso:
+    rosenbrock:
+      n_particles: 30
+      c1: 0.8
+      c2: 0.4
+      w: 0.1
+    rastrigin:
+      n_particles: 30
+      c1: 0.8
+      c2: 0.4
+      w: 0.1
+
 salidas:                   # carpetas propias: la demo no pisa los resultados completos
   resultados: results/compare_demo
   figuras: figures/compare_demo
