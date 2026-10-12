@@ -1,6 +1,8 @@
 """Pruebas del ETL con objetos sintéticos; no son datos de carreteras españolas."""
 
 import csv
+from dataclasses import replace
+from hashlib import sha256
 import json
 from pathlib import Path
 
@@ -363,11 +365,41 @@ def test_project_etl_yaml_is_loaded_and_validated():
     assert config.raw_responses.as_posix() == "data/raw/routes"
 
 
-def test_project_fuel_config_and_sensitivity_keep_unverified_price_pending():
+def test_project_fuel_config_has_verified_bulletin_price_and_source_hash():
     economics = load_fuel_economics()
     assert [economics.consumption(case) for case in ("low", "reference", "high")] == [5.3, 5.4, 5.5]
-    assert economics.price_eur_per_liter is None
-    assert economics.price_status == "pending_direct_source_verification"
+    assert economics.price_eur_per_liter == pytest.approx(1.8490983979999999)
+    assert economics.price_status == "verified_official_bulletin"
+    assert economics.price_source_unit == "EUR/1000 L"
+    assert economics.price_source_cell == "B28"
+    assert economics.price_source_sha256 == sha256(Path(economics.price_source_file).read_bytes()).hexdigest().upper()
+
+
+def test_official_fuel_price_calculates_synthetic_100km_route_and_both_models():
+    economics = load_fuel_economics()
+    price = economics.price_eur_per_liter
+    hundred_km = replace(_alternative("x", "y", "one-hundred"), distance_km=100.0)
+    enriched_100km = apply_fuel_economics((hundred_km,), economics)[0]
+    expected_100km = 100.0 / 100.0 * 5.4 * price
+    assert enriched_100km.fuel_cost_eur == pytest.approx(expected_100km)
+
+    cities = (_city("x", 40, -3), _city("y", 41, -4))
+    raw = (
+        replace(_alternative("x", "y", "fast-xy", duration=1,
+                             toll_status=TollStatus.VERIFIED_WITHOUT_TOLL, toll=0, fastest="fast-xy"),
+                distance_km=10.0),
+        replace(_alternative("x", "y", "shorter-xy", duration=2,
+                             toll_status=TollStatus.VERIFIED_WITHOUT_TOLL, toll=0, fastest="fast-xy"),
+                distance_km=8.0),
+        replace(_alternative("y", "x", "fast-yx", duration=1,
+                             toll_status=TollStatus.VERIFIED_WITHOUT_TOLL, toll=0),
+                distance_km=10.0),
+    )
+    routes = apply_fuel_economics(raw, economics)
+    model_a = AlternativeTSPProblem(cities, routes, 0, mode="fastest").evaluate_route((0, 1))
+    model_b = AlternativeTSPProblem(cities, routes, 0, mode="economic").evaluate_route((0, 1))
+    assert model_a.fuel_cost_eur == pytest.approx(20.0 / 100 * 5.4 * price)
+    assert model_b.fuel_cost_eur == pytest.approx(18.0 / 100 * 5.4 * price)
 
 
 def test_fuel_configuration_returns_copies_and_supports_sensitivity_without_fabricating_price():

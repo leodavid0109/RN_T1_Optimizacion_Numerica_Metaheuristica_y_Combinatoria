@@ -27,7 +27,7 @@ finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr) }
 Remove-Variable secure, ptr
 ```
 
-La variable desaparece al cerrar esa sesión. No guardar el secreto en scripts, YAML, historial del repositorio o logs. Establecerla no ejecuta ninguna solicitud automáticamente.
+La variable desaparece al cerrar esa sesión. En la revisión del 2026-10-12 el valor persistente de usuario estaba definido, pero el entorno de PowerShell y el proceso hijo de `.venv` no lo tenían; un proceso de Codex ya abierto no recibe retroactivamente cambios del entorno de usuario. Se puede usar el bloque anterior en la sesión actual o cerrar completamente y reiniciar Codex para heredar la variable persistente. No guardar el secreto en scripts, YAML, historial del repositorio o logs. Establecerla no ejecuta ninguna solicitud automáticamente.
 
 Planificar sin red (reemplazar los ids por cualquier arco válido del catálogo):
 
@@ -39,7 +39,10 @@ python -m experiments.acquire_tsp_routes --pairs madrid:toledo,toledo:madrid `
 Una adquisición real requerirá autorización explícita del equipo, una clave válida y la revisión de cuota/condiciones vigentes:
 
 ```powershell
-$env:ORS_API_KEY = "<clave local, no versionar>"
+$secure = Read-Host "Clave ORS" -AsSecureString
+$ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+try { $env:ORS_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr) }
+finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr) }
 python -m experiments.acquire_tsp_routes --pairs madrid:toledo,toledo:madrid `
   --strategy fastest --max-requests 2 --execute
 ```
@@ -96,7 +99,7 @@ La opción inicial para un piloto controlado es ORS, condicionada a revisar y ar
 
 El API entrega una geometría, no el importe de una concesión. La detección cartográfica puede señalar carreteras etiquetadas `toll`; la tarifa monetaria requiere identificar concesión, categoría ligera, accesos/salidas y tarifa vigente de la fuente oficial. Si esa correspondencia no se verifica, el estado queda `desconocido`; nunca se transforma en cero. La alternativa “avoid tollways” también se considera solamente candidata hasta inspeccionar toda la geometría.
 
-El combustible se calcula como `distancia_km / 100 × consumo_l_100km × precio_EUR_l`. La configuración versionada está en `configs/tsp_economics.yaml`: BMW 120 Serie 1 F70 gasolina mild hybrid 48 V, 170 CV; 5,4 L/100 km como supuesto representativo (punto medio del rango BMW 5,3–5,5), con escenarios low/high 5,3/5,5. No se afirma que 5,4 sea la homologación de una variante concreta. El precio permanece `null` hasta verificar directamente el XLSX de la Comisión Europea del 2026-10-08; por eso el enriquecimiento offline deja combustible no verificable y no escribe un costo económico completo. No se confunde €/100 km con €/L, ni se incluyen mantenimiento, seguro o depreciación.
+El combustible se calcula como `distancia_km / 100 × consumo_l_100km × precio_EUR_l`. La configuración versionada está en `configs/tsp_economics.yaml`: BMW 120 Serie 1 F70 gasolina mild hybrid 48 V, 170 CV; 5,4 L/100 km como supuesto representativo (punto medio del rango BMW 5,3–5,5), con escenarios low/high 5,3/5,5. No se afirma que 5,4 sea la homologación de una variante concreta. El precio configurado es 1.8490983979999999 €/L, leído del XLSX oficial con impuestos del 2026-10-08: celda `Sheet1!B28`, España, unidad original EUR/1000 L, dividida por 1000. Archivo, hash, fecha consultada, fuente, celda y unidad quedan en YAML y `data/fuentes.md`. El costo económico sigue incompleto hasta verificar peajes; el precio conocido no convierte un peaje desconocido en cero. No se incluyen mantenimiento, seguro ni depreciación.
 
 El comando de reconstrucción aplica el escenario seleccionado sin modificar el catálogo persistido:
 
@@ -111,7 +114,7 @@ python -m experiments.build_tsp_matrices --mode economic --hour-value 25 --fuel-
 
 La documentación pública de ORS confirma:
 
-- Matrix admite 3.500 pares origen×destino por solicitud; una matriz 47×47 son 2.209 celdas incluyendo la diagonal y queda bajo ese límite público. El plan Standard publicado indica 500 llamadas Matrix/día y 40/minuto. La capacidad de Matrix de la cuenta concreta no puede consultarse porque `ORS_API_KEY` no está configurada.
+- Matrix admite 3.500 pares origen×destino por solicitud; una matriz 47×47 son 2.209 celdas incluyendo la diagonal y queda bajo ese límite público. El plan Standard publicado indica 500 llamadas Matrix/día y 40/minuto. La cuota restante de la cuenta concreta no se comprobó; el entorno de proceso de Codex aún no tiene `ORS_API_KEY` aunque la variable persistente de usuario sí aparece definida.
 - Directions admite hasta 6.000 km para conducción, geometría GeoJSON en `/v2/directions/{profile}/geojson`, y `options.avoid_features=["tollways"]` para perfiles `driving-*`.
 - Las rutas con `alternatives` están limitadas a 100 km y hasta tres alternativas solicitadas. Por las distancias del piloto previo, este mecanismo no aplica a Bilbao–Zaragoza, Madrid–A Coruña ni Barcelona–Girona, y no promete enumeración exhaustiva. Para esos pares solo podría pedirse una Directions separada con `avoid_features` si no excede los límites generales; la salida debe verificarse en geometría y tarifa.
 
@@ -136,7 +139,7 @@ python -m experiments.acquire_tsp_routes --pairs madrid:toledo,toledo:madrid,biz
 
 Al planificar sin ejecución el cliente no necesita clave ni abre conexión. Se recomienda ejecutar en dos lotes para que el equipo pueda aprobar uno o ambos presupuestos por separado. Por cada ejecución, el almacenamiento actual escribe el catálogo incremental `data/processed/routes/route_alternatives.csv`, estado `data/processed/routes/acquisition_state.json` y una respuesta cruda JSON por solicitud bajo `data/raw/routes/`. Las matrices se regeneran después con el constructor offline.
 
-La página del boletín de la Comisión identifica el XLSX “Prices with taxes latest prices” del 8 de octubre de 2026. En esta sesión no se pudo obtener el archivo desde el entorno (fallo de conexión/resolución) y no se leyó su unidad/fila España. La fuente permite reutilización CC BY 4.0 salvo nota distinta; confirmar el aviso específico del XLSX y registrar la fecha real y hash al adquirirlo. Un valor encontrado en un agregador secundario no se incorpora a la configuración.
+El archivo local examinado se preserva como `data/raw/weekly_oil_bulletin_2026-10-08_prices_with_taxes.xlsx`. El nombre que traía el archivo decía `2026-09-21`, pero su hoja sitúa la fecha de referencia en 2026-10-05 y sus metadatos fueron modificados el 2026-10-08; el boletín publicado con esa fecha aparece en el índice oficial de la Comisión. Se registraron la celda `Sheet1!B28`, el valor, la unidad y el SHA-256 en `configs/tsp_economics.yaml` y `data/fuentes.md`. La política general de la Comisión permite reutilizar contenido propio bajo CC BY 4.0 salvo aviso distinto; se versiona el XLSX con atribución y registro de que se extrajo y convirtió un valor. La fecha real de descarga del usuario no viene embebida; la consulta/inspección local fue el 2026-10-12.
 
 El API reporta tiempos de perfil, no mediciones futuras ni tiempos de tráfico para una hora de salida. Puede cambiar el resultado con actualización del proveedor o de OSM. Se registra adquisición y perfil; cuando la API no exponga versión de grafo, se conserva expresamente como no informada y se guardan respuesta y petición bajo la licencia aplicable.
 
@@ -146,4 +149,4 @@ El API reporta tiempos de perfil, no mediciones futuras ni tiempos de tráfico p
 - ORS [planes y cuotas](https://openrouteservice.org/plans/) y [términos de servicio](https://openrouteservice.org/terms-of-service/); la página de cuenta requiere autenticación. La respuesta de HeiGIT en [consulta de licencia de resultados](https://ask.openrouteservice.org/t/free-plan-in-an-app-with-a-paid-tier-license-cc-by-sa-4-0-personal-data-and-attribution-questions/8079) fechada 2026-10-12 declara CC-BY-SA 4.0.
 - OSRM [API](https://project-osrm.org/docs/v5.24.0/api/) y [política de uso del servidor demo](https://github.com/Project-OSRM/osrm-backend/wiki/Api-usage-policy).
 - GraphHopper [Directions API](https://docs.graphhopper.com/openapi) y [términos del servicio](https://www.graphhopper.com/terms/), que especifican cacheado temporal y acuerdo para redistribución.
-- Para capitales, vehículo, peajes y combustible siguen aplicando los registros previos de [data/fuentes.md](../data/fuentes.md); esta fase no actualizó ni completó tarifas/precio/consumo.
+- Para capitales, vehículo, peajes y combustible siguen aplicando los registros de [data/fuentes.md](../data/fuentes.md); la tarifa monetaria de peajes continúa pendiente de verificación para muchos arcos.

@@ -1,5 +1,4 @@
-# Parámetros económicos versionables. El precio queda pendiente hasta extraerlo
-# directamente del archivo oficial del Weekly Oil Bulletin.
+# Parámetros económicos versionables con procedencia del boletín oficial.
 study_reference_date: "2026-10-12"
 vehicle:
   id: bmw-120-f70-48v-170cv
@@ -12,16 +11,25 @@ vehicle:
   consumption_basis: "Supuesto representativo: punto medio del intervalo WLTP oficial BMW 5.3–5.5; no homologación de una configuración específica."
   source: "https://www.bmw.es/es/coches-bmw/serie-1/bmw-serie-1/datos-tecnicos-bmw-serie1.html"
 fuel_price:
-  eur_per_liter: null
+  eur_per_liter: 1.8490983979999999
   fuel_grade: "Eurosuper 95"
   tax_basis: "taxes_included"
   source: "https://energy.ec.europa.eu/data-and-analysis/weekly-oil-bulletin_en"
   publication_date: "2026-10-08"
+  consulted_on: "2026-10-12"
   acquired_on: null
   study_reference_date: "2026-10-12"
-  source_unit: null
-  extraction_method: "Pendiente: leer fila España / Eurosuper 95 del XLSX oficial de precios con impuestos y normalizar según su unidad declarada."
-  status: pending_direct_source_verification
+  source_file: "data/raw/weekly_oil_bulletin_2026-10-08_prices_with_taxes.xlsx"
+  source_sha256: "CAF597685A68EA265E7E671715622B71B7402DE069D21477331EA196F8F6A3C0"
+  source_sheet: "Sheet1"
+  source_cell: "B28"
+  source_date_cell: "A2"
+  source_date_value: "2026-10-05"
+  source_value: 1849.0983979999999
+  source_unit: "EUR/1000 L"
+  conversion: "1849.0983979999999 EUR/1000 L / 1000 = 1.8490983979999999 EUR/L"
+  extraction_method: "XLSX de solo lectura; cruce de A1 (EUR), B1 (Euro-super 95), B2 (1000 l), A28 (Spain) y B28 (valor numérico). La fecha del boletín publicado se verifica en la página oficial de la Comisión; A2 es la fecha de referencia de precios 05/10/2026."
+  status: verified_official_bulletin
 cost_scope:
   included: [seller_time, tolls, fuel]
   excluded: [maintenance, insurance, depreciation]
