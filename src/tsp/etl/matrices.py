@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 from dataclasses import dataclass
+from hashlib import sha256
 import json
 import math
 import os
@@ -168,7 +169,8 @@ def build_fuel_matrix(
 
     No escribe una matriz de costo total porque no incorpora ni verifica peajes.
     """
-    distances = load_complete_matrix(distance_matrix_path, city_order)
+    distance_path = Path(distance_matrix_path)
+    distances = load_complete_matrix(distance_path, city_order)
     if economics.price_eur_per_liter is None:
         raise ValueError("no se puede calcular combustible: precio €/L pendiente")
     consumption = economics.consumption(scenario)
@@ -176,6 +178,8 @@ def build_fuel_matrix(
     fuel.setflags(write=False)
     target = Path(output_path)
     _write_matrix(target, list(city_order), fuel.tolist())
+    distance_hash = sha256(distance_path.read_bytes()).hexdigest()
+    fuel_hash = sha256(target.read_bytes()).hexdigest()
     _write_json_atomic(target.with_suffix(target.suffix + ".manifest.json"), {
         "schema_version": 1,
         "matrix_type": "fuel_cost",
@@ -192,10 +196,73 @@ def build_fuel_matrix(
         "fuel_price_acquired_on": economics.price_acquired_on,
         "study_reference_date": economics.study_reference_date,
         "scenario": scenario,
+        "distance_matrix_file": distance_path.as_posix(),
+        "distance_matrix_sha256": distance_hash,
+        "fuel_matrix_file": target.as_posix(),
+        "fuel_matrix_sha256": fuel_hash,
         "tolls_included": False,
         "economic_total_created": False,
     })
     return target
+
+
+def rebuild_matrix_snapshot(
+    raw_snapshot_path: str | Path,
+    output_dir: str | Path,
+    city_order: Sequence[str],
+) -> dict[str, Path]:
+    """Regenera offline las matrices km/h desde un snapshot ORS crudo e íntegro."""
+    from ..etl.ors import parse_ors_matrix
+
+    source = Path(raw_snapshot_path)
+    payload = json.loads(source.read_text(encoding="utf-8"))
+    response = payload.get("response")
+    expected = tuple(city_order)
+    if not isinstance(response, dict) or not expected or len(set(expected)) != len(expected):
+        raise ValueError("el snapshot crudo o el orden canónico no son válidos")
+    if tuple(payload.get("city_order", ())) != expected:
+        raise ValueError("el orden del snapshot no coincide con el catálogo canónico")
+    request = payload.get("request", {})
+    body = request.get("body", {})
+    if body.get("units") != "m" or set(body.get("metrics", ())) != {"distance", "duration"}:
+        raise ValueError("el snapshot no declara distancia en metros y duración en segundos")
+    if request.get("city_order") is not None and tuple(request["city_order"]) != expected:
+        raise ValueError("el orden de la petición no coincide con el catálogo canónico")
+    response_hash = sha256(json.dumps(response, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+    if response_hash != payload.get("response_sha256"):
+        raise ValueError("el hash de la respuesta ORS no coincide con el snapshot")
+    normalized = parse_ors_matrix(response, len(expected))
+    output = Path(output_dir)
+    output.mkdir(parents=True, exist_ok=True)
+    stem = source.stem
+    paths = {
+        "distance_km": output / f"distance_km_{stem}.csv",
+        "time_hours": output / f"time_hours_{stem}.csv",
+    }
+    for metric, path in paths.items():
+        _write_matrix(path, list(expected), normalized[metric])
+    manifest = {
+        "schema_version": 1,
+        "rebuild_method": "offline_from_verified_raw_snapshot",
+        "request_id": payload.get("request_id"),
+        "provider": payload.get("provider"),
+        "profile": (payload.get("request", {}).get("url", "").rstrip("/").split("/")[-1]),
+        "city_order": list(expected),
+        "dimensions": [len(expected), len(expected)],
+        "units": {"distance_km": "km", "time_hours": "h"},
+        "raw_snapshot_file": source.as_posix(),
+        "raw_snapshot_sha256": sha256(source.read_bytes()).hexdigest(),
+        "response_sha256": response_hash,
+        "acquired_at": payload.get("acquired_at"),
+        "provider_timestamp": response.get("metadata", {}).get("timestamp"),
+        "attribution": response.get("metadata", {}).get("attribution") or payload.get("attribution"),
+        "matrices": {
+            name: {"file": path.name, "sha256": sha256(path.read_bytes()).hexdigest()}
+            for name, path in paths.items()
+        },
+    }
+    _write_json_atomic(output / f"matrix_manifest_{stem}.json", manifest)
+    return paths
 
 
 def _complete_economic_cost(route: RouteAlternative) -> None:
@@ -210,7 +277,8 @@ def _write_matrix(path: Path, ids: list[str], matrix: list[list[float | None]]) 
             writer = csv.writer(stream)
             writer.writerow(["city_id", *ids])
             for city_id, row in zip(ids, matrix):
-                writer.writerow([city_id, *["" if value is None else f"{value:.12g}" for value in row]])
+                # 17 cifras significativas permiten reconstruir exactamente el float64.
+                writer.writerow([city_id, *["" if value is None else f"{value:.17g}" for value in row]])
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temporary, path)

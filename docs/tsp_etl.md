@@ -73,7 +73,17 @@ La respuesta cruda conserva metadatos y ubicaciones ajustadas devueltas por el s
   --output data/processed/matrices/fuel_cost_eur.csv --scenario reference
 ```
 
-El comando valida que la matriz completa siga el orden canónico y escribe un manifiesto de escenario/insumos. No construye la matriz económica total; los peajes desconocidos no se convierten en cero.
+El comando valida que la matriz completa siga el orden canónico y escribe un manifiesto de escenario, parámetros y archivos de entrada/salida con sus hashes SHA-256. No construye la matriz económica total; los peajes desconocidos no se convierten en cero.
+
+Los CSV de distancia y duración pueden volver a generarse, también sin conexión, desde su JSON original verificado. El replay valida el hash de la respuesta y el orden exacto del catálogo antes de escribir:
+
+```powershell
+& .\.venv\Scripts\python.exe -m experiments.rebuild_tsp_matrix_snapshot `
+  --raw-snapshot data/raw/routes/<snapshot-matrix-json> `
+  --output-dir data/processed/matrices/ors_snapshots
+```
+
+El manifiesto del replay conserva hash/fecha de adquisición del snapshot, perfil, unidades, atribución y hashes de los CSV generados. El formato numérico permite reconstruir los valores float64. A partir del CSV de distancia regenerado se pueden crear escenarios de combustible con `experiments.build_tsp_fuel_matrix`; sus manifiestos guardan el hash de entrada y salida.
 
 Agregar un candidato que evite vías etiquetadas como peaje requiere una consulta aparte por arco:
 

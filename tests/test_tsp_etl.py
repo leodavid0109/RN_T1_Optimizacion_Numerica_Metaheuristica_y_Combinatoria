@@ -17,8 +17,7 @@ from src.tsp.etl import (
     RouteStore, apply_fuel_economics, build_matrix_files, load_etl_config, load_fuel_economics,
     parse_ors_geojson, parse_ors_matrix,
 )
-from src.tsp.etl.matrices import load_complete_matrix
-from src.tsp.etl.matrices import build_fuel_matrix
+from src.tsp.etl.matrices import build_fuel_matrix, load_complete_matrix, rebuild_matrix_snapshot
 from src.tsp.etl.matrix_validation import compare_matrix_to_directions
 
 
@@ -547,11 +546,13 @@ def test_national_matrix_provider_uses_one_full_ordered_request_and_public_endpo
     assert raw["sources"][0]["location"][0] == pytest.approx(cities[0].longitude + 0.001)
 
 
-def test_matrix_plan_for_all_cities_is_offline_and_reports_request_limits(monkeypatch, capsys):
+def test_matrix_plan_for_all_cities_is_offline_and_reports_request_limits(monkeypatch, capsys, tmp_path):
     from experiments.acquire_tsp_matrix import main
 
     monkeypatch.setattr("sys.argv", ["acquire_tsp_matrix", "--all-cities", "--max-cells", "3500",
-                                     "--max-http-requests", "1", "--max-retries", "0"])
+                                     "--max-http-requests", "1", "--max-retries", "0",
+                                     "--store", str(tmp_path / "routes"),
+                                     "--raw-dir", str(tmp_path / "raw")])
     assert main() == 0
     plan = json.loads(capsys.readouterr().out)
     assert plan["network_access_performed"] is False
@@ -591,6 +592,47 @@ def test_fuel_matrix_is_reconstructed_offline_without_toll_or_total_cost(tmp_pat
     manifest = json.loads(target.with_suffix(".csv.manifest.json").read_text(encoding="utf-8"))
     assert manifest["tolls_included"] is False
     assert manifest["economic_total_created"] is False
+    assert manifest["distance_matrix_file"] == distance_path.as_posix()
+    assert manifest["distance_matrix_sha256"] == sha256(distance_path.read_bytes()).hexdigest()
+    assert manifest["fuel_matrix_sha256"] == sha256(target.read_bytes()).hexdigest()
+
+
+def test_matrix_snapshot_rebuilds_offline_and_checks_response_hash(tmp_path):
+    response = {
+        "distances": [[0, 12500], [13200, 0]],
+        "durations": [[0, 3600], [4200, 0]],
+        "metadata": {"timestamp": 1791861282096, "attribution": "synthetic attribution"},
+    }
+    response_hash = sha256(json.dumps(response, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+    source = tmp_path / "raw_snapshot.json"
+    payload = {
+        "request_id": "synthetic-matrix",
+        "provider": "synthetic-test",
+        "request": {"url": "https://example.invalid/v2/matrix/driving-car",
+                    "body": {"units": "m", "metrics": ["distance", "duration"]},
+                    "city_order": ["x", "y"]},
+        "response": response,
+        "city_order": ["x", "y"],
+        "response_sha256": response_hash,
+        "acquired_at": "2026-10-12T00:00:00+00:00",
+    }
+    source.write_text(json.dumps(payload), encoding="utf-8")
+
+    paths = rebuild_matrix_snapshot(source, tmp_path / "rebuilt", ["x", "y"])
+    assert load_complete_matrix(paths["distance_km"], ["x", "y"]).tolist() == [[0, 12.5], [13.2, 0]]
+    times = load_complete_matrix(paths["time_hours"], ["x", "y"])
+    assert times[0, 0] == 0 and times[0, 1] == pytest.approx(1)
+    assert times[1, 0] == pytest.approx(4200 / 3600) and times[1, 1] == 0
+    manifest = json.loads((tmp_path / "rebuilt" / "matrix_manifest_raw_snapshot.json").read_text())
+    assert manifest["rebuild_method"] == "offline_from_verified_raw_snapshot"
+    assert manifest["response_sha256"] == response_hash
+    assert manifest["units"] == {"distance_km": "km", "time_hours": "h"}
+    assert manifest["matrices"]["distance_km"]["sha256"] == sha256(paths["distance_km"].read_bytes()).hexdigest()
+
+    payload["response"]["distances"][0][1] += 1
+    source.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="hash"):
+        rebuild_matrix_snapshot(source, tmp_path / "tampered", ["x", "y"])
 
 
 def test_matrix_direction_comparison_uses_fastest_records_and_reports_percentages():
