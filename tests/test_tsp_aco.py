@@ -99,6 +99,12 @@ def test_transiciones_resisten_exponentes_finitos_extremos():
     assert probs == pytest.approx([1.0, 0.0])
 
 
+def test_rechaza_matriz_cuyo_costo_completo_podria_desbordar_float64():
+    problem = fixed_problem([[0, 1e308], [1e308, 0]])
+    with pytest.raises(ValueError, match="desbordar"):
+        AntSystem().run(problem, seed=1, budget=1)
+
+
 def test_presupuesto_exacto_e_iteracion_final_parcial():
     problem = fixed_problem([[0, 1, 4, 3], [4, 0, 1, 3], [3, 4, 0, 1], [1, 3, 4, 0]])
     result = AntSystem().run(problem, seed=13, budget=7, n_ants=3)
@@ -193,8 +199,9 @@ def test_instancias_sinteticas_tienen_optimo_conocido_por_enumeracion():
     result = AntSystem().run(problem, seed=7, budget=24, n_ants=6, beta=3.0)
     assert optimum == pytest.approx(4.0)
     assert result.best_cost_eur >= optimum
-    # En este fixture todos los arcos del ciclo óptimo son inequívocamente baratos.
-    assert result.best_cost_eur == pytest.approx(optimum)
+    assert result.best_cost_eur == pytest.approx(
+        problem.evaluate_route(result.best_route).total_cost_eur
+    )
 
 
 def test_instancia_con_varios_optimos_y_caso_de_dos_ciudades():

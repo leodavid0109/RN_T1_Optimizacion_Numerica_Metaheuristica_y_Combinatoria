@@ -48,6 +48,8 @@ class AntSystem:
             raise ValueError(f"cost_matrix_eur debe tener dimensión {(size, size)}")
         if not np.all(np.isfinite(costs)) or np.any(costs < 0):
             raise ValueError("la matriz de costos debe contener valores finitos y no negativos")
+        if float(np.max(costs)) > np.finfo(float).max / int(size):
+            raise ValueError("la matriz permite ciclos cuyo costo podría desbordar float64")
         if not np.allclose(np.diag(costs), 0.0, rtol=0.0, atol=1e-12):
             raise ValueError("la diagonal de la matriz de costos debe ser cero")
 

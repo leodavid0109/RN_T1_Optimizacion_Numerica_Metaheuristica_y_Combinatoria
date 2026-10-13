@@ -47,11 +47,14 @@ los arcos de costo cero, la feromona determina la probabilidad. Si `β = 0`, se
 ignora la heurística, incluso para costos cero.
 
 La matriz de costos del contrato debe tener valores finitos no negativos; los
-arcos prohibidos o no finitos se rechazan. La diagonal debe ser cero, aunque no
-se ofrece como candidato durante la construcción. Las feromonas se mantienen
-positivas mediante un piso numérico y se saturan antes de desbordarse. Si el
-costo total de una ruta es cero, `Q/C` no está definido: se usa un depósito
-finito `Q`, documentado como caso límite para instancias sintéticas.
+arcos prohibidos o no finitos se rechazan. También se rechaza conservadoramente
+una matriz cuyo máximo arco multiplicado por `N` podría desbordar el costo de un
+ciclo en `float64`. La diagonal debe ser cero, aunque no se ofrece como
+candidato durante la construcción. Las feromonas se mantienen positivas mediante
+un piso numérico y se saturan en un límite finito antes de desbordarse; `tau0`
+extremo se ajusta a esos límites numéricos. Si el costo total de una ruta es
+cero, `Q/C` no está definido: se usa un depósito finito `Q`, documentado como
+caso límite para instancias sintéticas.
 
 ## Evaporación y depósito
 
