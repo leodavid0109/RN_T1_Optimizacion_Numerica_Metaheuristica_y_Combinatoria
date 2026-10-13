@@ -145,3 +145,91 @@ confirmado de la geometría ORS ni como valor futuro.
 Antes de una adquisición Overpass se presentará el plan de cajas, número de
 consultas y volumen previsto. Las pruebas actuales usan fixtures sintéticos y
 no hacen consultas externas.
+
+## 7. Plan reproducible del piloto Overpass
+
+`src/tsp/etl/overpass_pilot.py` carga el catálogo local de rutas y genera un
+manifiesto sin conexión. La planificación actual leyó **12 geometrías** (seis
+arcos dirigidos, rápidas y candidatas `avoid_tolls`), con 28.692 vértices y
+28.680 segmentos. Se usa una cuadrícula de celdas de 0,5° por 0,5° y un margen
+configurable de 2 km alrededor de los segmentos. El margen se aproxima en
+grados con la latitud local; es una envolvente conservadora, no un buffer
+geodésico de precisión topográfica.
+
+La deduplicación de celdas compartidas deja **35 cajas únicas**: 11 priorizadas
+por corresponder a Bilbao ↔ Zaragoza y 24 para los demás corredores del
+piloto. Cada consulta cubre un máximo de 0,25 grados cuadrados (aprox. 55 km
+por lado en latitud media española). Las rutas rápidas y candidatas están
+asociadas a cada celda en el manifiesto. El plan valida que cada vértice y el
+punto medio de cada segmento de las 12 polilíneas caiga dentro de alguna caja
+asignada a su alternativa (57.372 muestras de cobertura en esta ejecución).
+La región prioritaria abarca
+aproximadamente latitudes 41,5–43,5° y longitudes −3,0–0,0°; el conjunto
+restante cubre Madrid–Toledo, Madrid–A Coruña y Barcelona–Girona. Los límites
+exactos, IDs de celda y consultas quedan en el manifiesto local ignorado por
+Git `data/processed/tolls/overpass_pilot_manifest.json`.
+
+Planificar desde PowerShell, en la raíz del repositorio:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.tsp.etl.overpass_pilot `
+  --manifest data\processed\tolls\overpass_pilot_manifest.json `
+  --cell-degrees 0.5 --margin-m 2000
+```
+
+El script no consulta red sin `--execute`. Cuando se autorice el piloto, el
+comando correspondiente queda preparado con límite duro de 35 solicitudes,
+dos segundos entre peticiones, sin concurrencia ni reintentos automáticos:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.tsp.etl.overpass_pilot `
+  --manifest data\processed\tolls\overpass_pilot_manifest.json `
+  --cell-degrees 0.5 --margin-m 2000 `
+  --execute --max-requests 35 --interval-seconds 2
+```
+
+Antes de ejecutar, la CLI vuelve a generar el manifiesto desde la geometría
+local y verifica el presupuesto; si el plan requiere más de 35 peticiones,
+aborta antes de contactar al servicio. Cada caja tiene cache propia y se guarda
+en `data/raw/tolls/` y `data/processed/tolls/`. Un estado local registra las
+cajas completadas. Al reanudar, las cajas ya adquiridas se omiten; una
+respuesta incompleta no se considera exitosa. No hay reintentos automáticos.
+Ante HTTP 429 se guarda el código, se detiene el lote y el estado impone una
+espera de 30 segundos antes de admitir otra ejecución. El flujo es secuencial y
+no requiere claves. Esos directorios permanecen excluidos de Git.
+
+La consulta incluye instalaciones `barrier=toll_booth`, `highway=toll_gantry`
+y elementos con `toll=yes`, con etiquetas y geometría. Las cajas solapadas
+comparten sus bordes; el parser deduplica dentro de cada respuesta, pero todavía
+no existe un consolidado global por ID OSM entre respuestas. Antes de cruzar
+todo el piloto se debe unir por `osm:{type}/{id}` para evitar duplicados de
+borde. Celdas ausentes en OSM no prueban cobertura completa
+ni ausencia de peaje. La cercanía a una ruta se mantiene como
+`candidato_proximidad`; el analizador actual **no asigna por sí solo** estados
+distintos de paso probable, tránsito confirmado o ambigüedad topológica. Para
+eso hacen falta IDs de vías, conexiones y calzada/sentido, más una revisión
+adicional. Ninguna proximidad genera tarifas.
+
+Las 12 respuestas ORS locales registran motor **9.10.0**, perfil
+`driving-car` y formato GeoJSON (`/geojson`). Sus `Feature.properties` contienen
+`summary`, `segments` y `way_points`, pero no `extras`. Para esa versión, la
+documentación enumera `tollways`, `waycategory` y `osmid` como datos disponibles
+para `driving-car`, a solicitar mediante `extra_info`. En JSON normal aparecen
+en `routes[*].extras`; en el formato GeoJSON de estas respuestas estarían en
+`features[*].properties.extras` (las propiedades de cada Feature contienen los
+mismos datos de ruta). `osmid` se representa en la respuesta con la clave
+`osmId`. Esos atributos ayudarían a enlazar secciones con vías, pero no aportan
+tarifas ni prueban estaciones de entrada/salida. Recuperarlos requeriría nuevas
+consultas Directions para cada ruta que se quiera enriquecer; no se realizaron
+aquí.
+
+El servicio público Overpass comparte capacidad y puede responder 429 o 504;
+su guía recomienda consultas pequeñas, y el inventario piloto propuesto son
+35 peticiones secuenciales, sin paralelismo. El número no garantiza que cada
+caja tenga respuesta ni constituye una cuota prometida. Para España completa,
+la adquisición debe ser única por corredor/región con celdas deduplicadas, no
+una solicitud por cada uno de los 2.162 arcos. Después se reutiliza el
+inventario local para todos los cruces. OSM es una base colaborativa: deben
+registrarse `osm_base`, fecha efectiva, instancia, consultas, IDs y atribución;
+faltantes cartográficos requieren fuentes oficiales y revisión, y los datos
+OSM redistribuidos deben cumplir ODbL.

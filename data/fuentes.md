@@ -39,3 +39,30 @@ Las solicitudes se hicieron el 2026-10-12 al endpoint `/route/v1/driving` del se
 Las duraciones se convierten de segundos de OSRM a minutos y las distancias de metros a kilómetros. La asimetría observada (por ejemplo, Madrid–Toledo frente a Toledo–Madrid) es admisible por sentidos de circulación, acceso urbano, ajuste a la red y ruta elegida; no se fuerza simetría en el modelo. El servidor devolvió una alternativa para Toledo–Madrid y otra para Barcelona–Girona, no un inventario exhaustivo de rutas posibles. Sus duraciones son estimaciones estáticas del perfil y no incorporan condiciones de tráfico observadas para una hora de salida.
 
 El piloto confirma que OSRM automatiza distancia, duración, secuencia vial y geometría para un par dirigido, pero no determina precio de peaje. La tarifa monetaria requiere enlazar cada sección de carretera de peaje con sus puntos de entrada/salida y la categoría del vehículo en la tabla del operador. El estado de peaje debe ser versionado por fecha: una ruta puede pasar por carreteras AP que ya son gratuitas, y la concesión AP-68 está próxima a terminar según la fuente oficial consultada. Para reproducibilidad de la matriz completa se recomienda autoalojar OSRM con una versión fijada del motor, perfil y extracto OSM archivado con fecha/atribución; usar el demo para 2.162 consultas no es apropiado. Seis consultas en el demo produjeron rutas en la prueba, pero eso no constituye garantía de rendimiento ni disponibilidad para el procesamiento completo.
+# Consulta documental adicional: planificación Overpass (2026-10-12)
+
+- Manual oficial de uso compartido de Overpass API:
+  https://dev.overpass-api.de/overpass-doc/en/preface/commons.html
+  Consultado el 2026-10-12. Describe instancias públicas compartidas, carga
+  variable, control de recursos y respuestas HTTP 429/504. Sus cifras son
+  orientaciones operativas, no una cuota garantizada para este proyecto.
+- Recomendaciones de uso de Overpass API en OpenStreetMap Wiki:
+  https://wiki.openstreetmap.org/wiki/Overpass_API#Public_Overpass_API_instances
+  Consultado el 2026-10-12. Recomienda cachear, limitar frecuencia, evitar
+  consultas paralelas y esperar antes de repetir tras 429/406. Se utiliza como
+  respaldo operativo para la espera de 30 segundos del piloto.
+- Documentación oficial ORS Directions — información adicional:
+  https://giscience.github.io/openrouteservice/v9.10.0/api-reference/endpoints/directions/extra-info/
+  y formato de respuesta GeoJSON:
+  https://giscience.github.io/openrouteservice/v9.10.0/api-reference/endpoints/directions/requests-and-return-types
+  Consultado el 2026-10-12. Indica que `extra_info` admite `tollways`,
+  `waycategory` y `osmid` para `driving-car` en el motor 9.10.0; en JSON quedan
+  en `routes[*].extras`, y en el formato GeoJSON utilizado, bajo
+  `features[*].properties.extras`. La clave de respuesta del dato solicitado
+  como `osmid` es `osmId`. No devuelve tarifas ni accesos tarifarios.
+
+El inventario planeado en esta fase es exclusivamente una cuadrícula local
+derivada de las 12 geometrías piloto ORS. La planificación no descargó objetos
+de Overpass ni consultó ORS. El manifiesto y las respuestas de proveedor se
+guardan bajo `data/processed/tolls/` y `data/raw/tolls/`, carpetas ignoradas
+por Git mientras se revisan los términos específicos de redistribución.
