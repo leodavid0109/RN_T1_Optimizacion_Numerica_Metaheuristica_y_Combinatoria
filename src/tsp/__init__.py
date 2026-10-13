@@ -6,10 +6,12 @@ from .contracts import ConvergencePoint, TSPAlgorithm, TSPObjective, TSPRunResul
 from .evaluation import EvaluationBudgetExceeded, RunEvaluator
 from .models import AlternativeTSPProblem, SelectedAlternative, UnverifiableCostError
 from .problem import RouteCost, TSPProblem
+from .aco import AntSystem
 
 __all__ = [
     "City",
     "AlternativeTSPProblem",
+    "AntSystem",
     "ConvergencePoint",
     "EvaluationBudgetExceeded",
     "RouteCost",
