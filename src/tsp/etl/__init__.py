@@ -23,6 +23,7 @@ from .toll_tariffs import (
     assess_route_tolls, export_official_tariffs_csv, import_official_tariffs_csv,
 )
 from .toll_coverage import ArcTollCoverage, TollCoverageReport, build_toll_coverage_report, coverage_report_as_dict
+from .tollguru import TollGuruClient, TollGuruError, TollGuruRequestPlan, TollGuruResponse
 
 __all__ = [
     "AcquisitionManager", "AcquisitionRequest", "AcquisitionSummary", "ETLConfig", "load_etl_config",
@@ -39,4 +40,5 @@ __all__ = [
     "RouteTollAssessment", "RouteTollSection", "TollTariff", "apply_toll_assessment",
     "assess_route_tolls", "export_official_tariffs_csv", "import_official_tariffs_csv",
     "ArcTollCoverage", "TollCoverageReport", "build_toll_coverage_report", "coverage_report_as_dict",
+    "TollGuruClient", "TollGuruError", "TollGuruRequestPlan", "TollGuruResponse",
 ]
