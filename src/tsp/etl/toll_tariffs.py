@@ -17,11 +17,13 @@ from typing import Iterable
 from ..alternatives import RouteAlternative, TollStatus
 
 
-TARIFF_FIELDS = (
+TARIFF_REQUIRED_FIELDS = (
     "tariff_id", "operator", "road", "entry_station", "exit_station", "direction",
     "vehicle_category", "amount_eur", "valid_from", "valid_through", "source_url",
     "published_on", "acquired_on", "payment_conditions", "verification_status", "notes",
 )
+TARIFF_OPTIONAL_FIELDS = ("payment_method", "time_rule", "source_document", "source_page")
+TARIFF_FIELDS = TARIFF_REQUIRED_FIELDS + TARIFF_OPTIONAL_FIELDS
 
 
 @dataclass(frozen=True)
@@ -42,6 +44,10 @@ class TollTariff:
     payment_conditions: str
     verification_status: str
     notes: str = ""
+    payment_method: str = "unknown"
+    time_rule: str = ""
+    source_document: str = ""
+    source_page: str = ""
 
     def __post_init__(self) -> None:
         for field in ("tariff_id", "operator", "road", "entry_station", "exit_station", "direction",
@@ -52,8 +58,10 @@ class TollTariff:
         if not math.isfinite(amount) or amount < 0:
             raise ValueError("amount_eur debe ser finito y no negativo")
         object.__setattr__(self, "amount_eur", amount)
-        for field in ("valid_from", "valid_through", "published_on", "acquired_on"):
+        for field in ("valid_from", "valid_through", "acquired_on"):
             date.fromisoformat(getattr(self, field))
+        if self.published_on:
+            date.fromisoformat(self.published_on)
         if self.valid_from > self.valid_through:
             raise ValueError("intervalo de vigencia invertido")
         if self.verification_status not in {"verificado_con_peaje", "verificado_sin_peaje"}:
@@ -106,8 +114,8 @@ def import_official_tariffs_csv(path: str | Path) -> tuple[TollTariff, ...]:
     """Lee CSV UTF-8 con los campos normalizados y rechaza filas ambiguas."""
     with Path(path).open(encoding="utf-8-sig", newline="") as stream:
         reader = csv.DictReader(stream)
-        if reader.fieldnames is None or not set(TARIFF_FIELDS).issubset(reader.fieldnames):
-            missing = sorted(set(TARIFF_FIELDS) - set(reader.fieldnames or ()))
+        if reader.fieldnames is None or not set(TARIFF_REQUIRED_FIELDS).issubset(reader.fieldnames):
+            missing = sorted(set(TARIFF_REQUIRED_FIELDS) - set(reader.fieldnames or ()))
             raise ValueError(f"faltan columnas tarifarias: {', '.join(missing)}")
         records = []
         seen: set[str] = set()
@@ -121,8 +129,9 @@ def import_official_tariffs_csv(path: str | Path) -> tuple[TollTariff, ...]:
             # Permite decimal con coma usado en algunos documentos, no separadores de miles.
             if "," in amount_text and "." not in amount_text:
                 amount_text = amount_text.replace(",", ".")
-            records.append(TollTariff(**{**{field: row.get(field, "").strip() for field in TARIFF_FIELDS},
-                                         "amount_eur": float(amount_text)}))
+            values = {field: row.get(field, "").strip() for field in TARIFF_FIELDS}
+            values["payment_method"] = values["payment_method"] or "unknown"
+            records.append(TollTariff(**{**values, "amount_eur": float(amount_text)}))
     return tuple(records)
 
 
