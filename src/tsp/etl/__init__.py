@@ -7,7 +7,8 @@ cuando el consumidor invoca explícitamente un proveedor.
 from .acquisition import AcquisitionManager, AcquisitionRequest, AcquisitionSummary
 from .config import ETLConfig, load_etl_config
 from .economics import FuelEconomics, apply_fuel_economics, load_fuel_economics
-from .matrices import MatrixBuildReport, build_matrix_files
+from .matrices import MatrixBuildReport, build_fuel_matrix, build_matrix_files
+from .matrix_validation import MatrixDirectionsDifference, compare_matrix_to_directions
 from .ors import OpenRouteServiceProvider, ProviderError, parse_ors_geojson, parse_ors_matrix
 from .store import RouteStore
 from .toll_infrastructure import (
@@ -24,8 +25,9 @@ from .toll_tariffs import (
 __all__ = [
     "AcquisitionManager", "AcquisitionRequest", "AcquisitionSummary", "ETLConfig", "load_etl_config",
     "FuelEconomics", "apply_fuel_economics", "load_fuel_economics",
-    "MatrixBuildReport", "OpenRouteServiceProvider", "ProviderError",
-    "RouteStore", "build_matrix_files", "parse_ors_geojson", "parse_ors_matrix",
+    "MatrixBuildReport", "MatrixDirectionsDifference", "OpenRouteServiceProvider", "ProviderError",
+    "RouteStore", "build_fuel_matrix", "build_matrix_files", "compare_matrix_to_directions",
+    "parse_ors_geojson", "parse_ors_matrix",
     "BoundingBox", "OverpassCatalogStore", "OverpassClient", "OverpassError", "RouteMatchCandidate",
     "TollInfrastructure",
     "load_infrastructure_catalog", "match_infrastructure_to_route",

@@ -6,7 +6,7 @@
 
 - `AcquisitionRequest` representa una conexión dirigida y sus coordenadas IGN en orden longitud/latitud. Su identificador depende de extremos, coordenadas y estrategia; el estado de adquisición también separa el perfil del motor.
 - `OpenRouteServiceProvider` usa la API Directions v2 para obtener resumen, geometría y alternativas devueltas por el proveedor; puede pedir una preferencia rápida o evitar `tollways`. Un resultado sin tarifa conserva `TollStatus.UNKNOWN` y `toll_cost_eur=None`.
-- El endpoint Matrix del mismo adaptador transforma metros a km y segundos a horas. La respuesta Matrix carece de geometría y no reemplaza Directions para rutas alternativas o verificación vial.
+- Matrix usa un endpoint configurable separado (`https://api.heigit.org/openrouteservice/v2/matrix`), envía todas las ubicaciones en el orden del catálogo sin `sources`/`destinations`, y transforma metros a km y segundos a horas. La respuesta Matrix carece de geometría y no reemplaza Directions para rutas alternativas o verificación vial.
 - `AcquisitionManager` exige un máximo de solicitudes explícito, omite estados ya adquiridos y controla una cuota diaria configurable. HTTP 429 y 5xx reciben reintentos acotados y se respeta `Retry-After`; 401/403 se detienen sin reintento.
 - `RouteStore` conserva el catálogo canónico en CSV, la respuesta y petición sin credenciales en JSON y un registro de estado. El registro local conserva fecha/hora de adquisición en UTC, códigos HTTP observados e intentos por solicitud; los errores guardan tipo, fecha UTC, intentos y códigos sin cabeceras ni cuerpos de error. Las respuestas se identifican por hash para conservar versiones de refresco; las verificaciones de peaje/combustible solo se conservan al refrescar cuando coinciden arco, geometría, distancia y duración. Si la ruta cambió, el registro anterior se archiva en `data/raw/routes/catalog_history/` y el nuevo costo queda pendiente. Escribe los archivos de forma atómica; no existe transacción entre catálogo, JSON y estado, así que una interrupción puede causar una consulta repetida, no la pérdida del CSV previo.
 - `build_matrix_files` crea matrices CSV dirigidas con identificadores y manifiesto de orden/unidades. Las celdas no verificadas quedan vacías. La matriz de costo económico no se escribe si faltan peajes, combustible, arcos o valor horario.
@@ -47,15 +47,33 @@ python -m experiments.acquire_tsp_routes --pairs madrid:toledo,toledo:madrid `
   --strategy fastest --max-requests 2 --max-http-requests 2 --execute
 ```
 
-Plan de una matriz pequeña y solicitud real, si se autoriza. `--max-cells` cuenta N², incluida la diagonal; `--city-ids` fija el orden del CSV:
+Planificar la matriz nacional desde el catálogo (no requiere clave ni red):
 
 ```powershell
-python -m experiments.acquire_tsp_matrix --city-ids madrid,toledo,bizkaia,zaragoza --max-cells 16
-python -m experiments.acquire_tsp_matrix --city-ids madrid,toledo,bizkaia,zaragoza `
-  --max-cells 16 --execute
+& .\.venv\Scripts\python.exe -m experiments.acquire_tsp_matrix --all-cities `
+  --max-cells 3500 --max-http-requests 1 --max-retries 0
 ```
 
-Un snapshot Matrix conserva las ubicaciones de origen/destino resueltas por el proveedor en el JSON original cuando son devueltas, además de coordenadas IGN, orden y matrices normalizadas. Directions conserva geometría por ruta.
+Tras revisar el plan, la adquisición real, si se autoriza, se limita a una petición y cero reintentos:
+
+```powershell
+& .\.venv\Scripts\python.exe -m experiments.acquire_tsp_matrix --all-cities `
+  --max-cells 3500 --max-http-requests 1 --max-retries 0 --execute
+```
+
+47×47 son 2.209 celdas, incluidas las diagonales, y 2.162 arcos dirigidos fuera de diagonal. El límite público documentado es 3.500 pares por solicitud. Para no activar el límite más estricto de solicitudes con argumentos dinámicos, el cuerpo omite `sources` y `destinations`; ambas dimensiones usan todas las ubicaciones. La petición declara `metrics: [distance, duration]`, `units: m` y `resolve_locations: true`. La autenticación va en `Authorization`, nunca al cuerpo ni a los archivos. Matrix se conserva localmente bajo `data/raw/routes/` (respuesta) y `data/processed/matrices/ors_snapshots/` (CSV normalizados); el archivo de estado evita repetir la matriz si ya quedó adquirida. Esas carpetas están excluidas de Git mientras se revisan los términos de redistribución.
+
+No se envía `preference: fastest`: la documentación actual del endpoint Matrix no lo enumera y la propuesta de agregarlo al backend seguía abierta al 2026-10-12. Se usa el comportamiento predeterminado del perfil `driving-car`; no se afirma que cada celda replique exactamente la geometría o el costo de Directions ni se redefine el Modelo A. Después de adquirir Matrix se debe comparar offline distancia y duración de los seis arcos piloto rápidos con `compare_matrix_to_directions`, usando diferencias absolutas y porcentajes relativos a Directions. Las diferencias se reportan; no se fuerza igualdad ni se reemplaza un dato por el otro.
+
+La respuesta cruda conserva metadatos y ubicaciones ajustadas devueltas por el servicio. Los CSV de Matrix conservan orden de filas/columnas explícito, unidades normalizadas y asimetría. El costo de combustible se puede derivar offline desde una matriz de distancia completa, sin incluir peajes ni total económico:
+
+```powershell
+& .\.venv\Scripts\python.exe -m experiments.build_tsp_fuel_matrix `
+  --distance-matrix <CSV-de-distancia-de-ors_snapshots> `
+  --output data/processed/matrices/fuel_cost_eur.csv --scenario reference
+```
+
+El comando valida que la matriz completa siga el orden canónico y escribe un manifiesto de escenario/insumos. No construye la matriz económica total; los peajes desconocidos no se convierten en cero.
 
 Agregar un candidato que evite vías etiquetadas como peaje requiere una consulta aparte por arco:
 

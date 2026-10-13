@@ -1,5 +1,15 @@
 # Fuentes de datos del TSP
 
+## Consulta documental Matrix ORS (2026-10-12)
+
+- Documentación del endpoint Matrix: https://giscience.github.io/openrouteservice/api-reference/endpoints/matrix/ . Define locations como coordenadas, permite fuentes/destinos como subconjuntos de índices, reporta distancias en m/km/millas y duraciones siempre en segundos. Si se omiten fuentes/destinos, ambos usan todas las ubicaciones; la diagonal de una ubicación consigo misma es cero.
+- Límites públicos: https://openrouteservice.org/restrictions/ . El Standard publica 3.500 pares origen×destino por petición Matrix y 25 pares cuando se usan argumentos dinámicos. Para 47×47 = 2.209 se omiten `sources` y `destinations`, evitando el modo dinámico; es una solicitud completa de todas las ubicaciones.
+- Migración del host: https://ask.openrouteservice.org/t/reducing-the-quota-of-deprecated-api-api-openrouteservice-org/8013 . El anuncio de HeiGIT del 2026-08-27 indica que `api.openrouteservice.org` está deprecado en favor de `api.heigit.org` y que el primero quedó limitado al 10% de las cuotas publicadas, con apagado previsto entre 2026-11-02 y 2026-11-06. La configuración Matrix usa `https://api.heigit.org/openrouteservice/v2/matrix`.
+- Compatibilidad de `preference`: la documentación Matrix consultada no enumera ese campo y la propuesta para añadir preferencias seguía abierta el 2026-10-12: https://github.com/GIScience/openrouteservice/pull/2324 . Por eso el cliente no envía `preference`; usa el comportamiento público por defecto de `driving-car`. No se considera automáticamente idéntico a Directions ni al Modelo A hasta medir diferencias.
+- Restricciones de redistribución: se revisaron los términos y materiales de ORS/HeiGIT, pero no se pudo verificar una autorización inequívoca para publicar indefinidamente la respuesta cruda y matrices derivadas de esta cuenta. Las respuestas y matrices externas permanecen excluidas de Git en almacenamiento local; revisar términos vigentes y atribución antes de publicarlas.
+
+No se llamó a Matrix durante la preparación del flujo nacional. El comando se validó únicamente en modo de planificación, sin tráfico de red.
+
 Cada dato real lleva fuente primaria y fecha de consulta. Los archivos crudos van en `data/raw/`.
 
 | Dato | Fuente (URL o documento) | Fecha de consulta | Archivo crudo | Verificado por | Notas / limitaciones |

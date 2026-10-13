@@ -156,6 +156,48 @@ def load_complete_matrix(path: str | Path, city_order: Sequence[str]) -> np.ndar
     return validate_matrix(values, len(expected), Path(path).stem)
 
 
+def build_fuel_matrix(
+    distance_matrix_path: str | Path,
+    output_path: str | Path,
+    city_order: Sequence[str],
+    economics,
+    *,
+    scenario: str = "reference",
+) -> Path:
+    """Deriva offline solo combustible desde una matriz completa de distancias (km).
+
+    No escribe una matriz de costo total porque no incorpora ni verifica peajes.
+    """
+    distances = load_complete_matrix(distance_matrix_path, city_order)
+    if economics.price_eur_per_liter is None:
+        raise ValueError("no se puede calcular combustible: precio €/L pendiente")
+    consumption = economics.consumption(scenario)
+    fuel = distances / 100.0 * consumption * economics.price_eur_per_liter
+    fuel.setflags(write=False)
+    target = Path(output_path)
+    _write_matrix(target, list(city_order), fuel.tolist())
+    _write_json_atomic(target.with_suffix(target.suffix + ".manifest.json"), {
+        "schema_version": 1,
+        "matrix_type": "fuel_cost",
+        "units": {"distance": "km", "consumption": "L/100 km", "fuel_price": "EUR/L",
+                  "fuel_cost": "EUR"},
+        "city_order": list(city_order),
+        "dimensions": list(fuel.shape),
+        "vehicle_id": economics.vehicle_id,
+        "fuel_grade": economics.fuel_grade,
+        "consumption_l_per_100km": consumption,
+        "fuel_price_eur_per_liter": economics.price_eur_per_liter,
+        "fuel_price_source": economics.price_source,
+        "fuel_price_reference_date": economics.price_reference_date,
+        "fuel_price_acquired_on": economics.price_acquired_on,
+        "study_reference_date": economics.study_reference_date,
+        "scenario": scenario,
+        "tolls_included": False,
+        "economic_total_created": False,
+    })
+    return target
+
+
 def _complete_economic_cost(route: RouteAlternative) -> None:
     if route.toll_status is TollStatus.UNKNOWN or route.toll_cost_eur is None or route.non_time_cost_eur is None:
         raise ValueError(f"costo no verificable para {route.origin_id}->{route.destination_id}/{route.alternative_id}")
