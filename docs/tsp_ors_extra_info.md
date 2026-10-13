@@ -9,6 +9,15 @@ compartir una arista. `osmid` puede venir como `osmId` en la respuesta. La
 distancia de `tollways.summary` está en metros y se normaliza a km; si el
 resumen falta, la distancia marcada como peaje queda desconocida.
 
+La tabla de disponibilidad vigente de ORS marca `waycategory`, `tollways` y
+`osmid` para `driving-car`; `osmid` debe pedirse y la respuesta usa la clave
+`osmId`. Esto confirma disponibilidad documentada para el servicio alojado,
+pero aún falta comprobarla en respuestas reales de estas rutas. Si no viene un
+campo pedido, el ETL rechaza esa adquisición y conserva el estado anterior.
+`waycategory` es una máscara de bits: `3 = 1 | 2` significa Highway y
+Tollways. El analizador descompone los bits conocidos y conserva banderas
+desconocidas.
+
 ## Adquisición controlada desde PowerShell
 
 Desde la raíz del repositorio, primero ejecutar cada línea **sin** `--execute`

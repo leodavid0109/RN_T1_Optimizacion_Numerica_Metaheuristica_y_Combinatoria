@@ -210,3 +210,27 @@ Fuentes oficiales revisadas el 2026-10-13:
   https://www.araba.eus/Presupuestos/2026/TOM-2026_PTO-50-02.html
 - Decreto gallego 125/2025, congelación 2026 y bonificaciones AG-55/AG-57:
   https://www.xunta.gal/dog/Publicados/2025/20251231/AnuncioG0765-291225-0001_gl.html
+
+### Revisión de estaciones OSM y ORS Extra Info (2026-10-13)
+
+- ORS Directions Extra Info:
+  https://giscience.github.io/openrouteservice/api-reference/endpoints/directions/extra-info/
+  y categorías de vía:
+  https://giscience.github.io/openrouteservice/api-reference/endpoints/directions/extra-info/waycategory
+  Consultado el 2026-10-13. La tabla vigente muestra `tollways`, `osmid` y
+  `waycategory` disponibles para `driving-car`; `osmid` se solicita con ese
+  nombre y aparece como `osmId`. La información no viene implícita: debe
+  pedirse en `extra_info`. La disponibilidad documental no confirma que una
+  respuesta concreta contenga todos los campos; el cliente lo valida.
+  `waycategory` es una máscara de bits: 3 combina Highway (1) y Tollways (2).
+- Tarifario AP-68 2026, página 1:
+  https://www.autopistas.com/wp-content/uploads/2025/12/26_003-Avasa-AP68-Bilbao_Zaragoza-T26.pdf
+  Consultado el 2026-10-13. La tabla de ligeros enumera estaciones de
+  referencia y muestra 39,90 EUR para Bilbao–Zaragoza desde 2026-01-01. El
+  precio no se vincula a geometrías ORS porque el snapshot local no verifica
+  estaciones de entrada y salida.
+- Los informes locales de estaciones están en
+  `data/processed/tolls/station_review/` y se regeneran con
+  `python -m experiments.report_tsp_toll_stations`. El informe usa el
+  inventario OSM parcial existente y las tres geometrías rápidas; no hizo
+  llamadas de red y permanece en directorios excluidos de Git.
