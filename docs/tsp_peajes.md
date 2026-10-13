@@ -1,8 +1,8 @@
 # Inventario y tarifas de peajes del TSP
 
 **Estado al 2026-10-12:** se ejecutó localmente una parte del piloto Overpass:
-una de 35 regiones quedó adquirida, una falló con HTTP 504 y 33 permanecen
-pendientes. Se generaron informes offline del snapshot disponible. No se
+dos de 35 regiones quedaron adquiridas, una falló con HTTP 504 y 32 permanecen
+pendientes. Se generaron informes offline de los dos snapshots disponibles. No se
 asignaron tarifas a las 12 rutas ORS. El ETL y sus validaciones están
 implementados, pero las matrices económicas nacionales todavía no existen.
 
@@ -199,8 +199,8 @@ dos segundos entre peticiones, sin concurrencia ni reintentos automáticos:
 ```
 
 Antes de ejecutar, la CLI vuelve a generar el manifiesto desde la geometría
-local y verifica el presupuesto; si el plan requiere más de 35 peticiones,
-aborta antes de contactar al servicio. Cada caja tiene cache propia y se guarda
+local. `--max-requests` es un tope por invocación: puede ser menor que el total
+planificado y las regiones restantes siguen pendientes para reanudar. Cada caja tiene cache propia y se guarda
 en `data/raw/tolls/` y `data/processed/tolls/`. Un estado local registra las
 cajas completadas. Al reanudar, las cajas ya adquiridas se omiten; una
 respuesta incompleta no se considera exitosa. No hay reintentos automáticos.
@@ -230,18 +230,18 @@ El comando genera `overpass_inventory.geojson`, `overpass_inventory.csv`,
 directorio sigue excluido de Git mientras no se cierre la revisión de
 redistribución.
 
-En la ejecución local observada el manifiesto tenía 35 cajas, pero el estado
-persistido registró una adquisición, un fallo HTTP 504 y 33 pendientes (dos
-solicitudes HTTP en la última ejecución). Por tanto, no se consideran
-completadas las 35 consultas. La única respuesta contenía 46 objetos
-normalizados: 45 vías y una relación AP-68; no devolvió estaciones
-`toll_booth` ni pórticos `toll_gantry`. El cruce produjo coincidencias probables
-entre las geometrías rápidas Bilbao ↔ Zaragoza y la relación AP-68, además de
-un alineamiento breve de las candidatas `avoid_tolls` en la zona adquirida.
-Esto es una señal para revisión, no una conclusión tarifaria: faltan 33 cajas,
-no se resolvieron accesos/salidas ni se verificó la cobertura completa de los
-tramos sujetos a tarifa. El informe offline detalla cada objeto, distancia,
-fracción aproximada de ruta y cobertura de celdas.
+En la revisión local se detectó que el estado persistido contenía más progreso
+que el resumen previo: el manifiesto tiene 35 cajas, con dos adquiridas, una
+fallida (HTTP 504) y 32 pendientes. La última ejecución hizo dos solicitudes
+HTTP y omitió una caja que ya estaba en caché. Los dos snapshots contienen 171
+elementos recibidos; la consolidación por `(tipo OSM, ID OSM)` deja 168 objetos
+únicos y elimina tres observaciones duplicadas. El inventario incluye vías y
+13 estaciones `toll_booth`; no se encontraron pórticos `toll_gantry`. El cruce
+actual produce coincidencias probables y candidatos por proximidad con AP-68,
+pero no confirma estaciones de acceso/salida, sentido de cobro ni costo. Quedan
+33 regiones no completadas: la fallida y las 32 pendientes. El informe offline
+regenerable detalla cada objeto, su procedencia, distancia a las rutas,
+fracción aproximada y cobertura de celdas.
 
 Las 12 respuestas ORS locales registran motor **9.10.0**, perfil
 `driving-car` y formato GeoJSON (`/geojson`). Sus `Feature.properties` contienen
@@ -269,14 +269,15 @@ OSM redistribuidos deben cumplir ODbL.
 
 ## 8. Diagnóstico y reanudación del piloto HTTP
 
-La consulta regional está acotada por `[timeout:25]` en Overpass QL. El
+Las dos consultas completadas devolvieron 46 y 125 elementos crudos; una de
+las respuestas incluye una relación extensa AP-68. El tamaño de la respuesta
+puede aumentar el trabajo de consultas futuras, pero no permite atribuir por
+sí solo el 504 a esa relación. Las consultas regionales están acotadas por
+`[timeout:25]` en Overpass QL. El
 transporte Python permite hasta 45 segundos para recibir la respuesta. Cada
 caja produce como máximo un POST y el cliente no reintenta automáticamente.
 La consulta contiene tres selectores `nwr` y pide `out body geom`; expandir
 geometrías de vías y relaciones puede elevar el trabajo y el tamaño de respuesta.
-La única respuesta observada ocupó una caja con 46 elementos, entre ellos una
-relación extensa AP-68. Esto es consistente con un timeout del servidor, pero
-no prueba por sí solo la causa interna del 504.
 
 HTTP 504 significa que un gateway/servidor no obtuvo a tiempo una respuesta de
 su upstream. HTTP 429 indica limitación o saturación por política de tasa. Son
@@ -339,7 +340,7 @@ Hasta completar la lista, el estado del peaje permanece `desconocido` y el
 costo económico de esa conexión no es verificable. La relación AP-68 y sus
 ways miembro son representaciones cartográficas solapadas de una infraestructura,
 no cobros independientes; nunca se suman por separado.
-En la única celda adquirida, la relación AP-68 de OSM se alinea aproximadamente
+En las celdas adquiridas, la relación AP-68 de OSM se alinea aproximadamente
 290,9 km con cada geometría ORS `fastest` Bilbao ↔ Zaragoza. Las candidatas
 `avoid_tolls` también se alinean localmente unos 332 m y 259 m con esa relación.
 Esto sugiere uso extenso de AP-68 en las rápidas y un cruce/acceso breve en las
