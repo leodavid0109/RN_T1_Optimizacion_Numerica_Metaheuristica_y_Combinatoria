@@ -255,20 +255,23 @@ def execute_plan(
     store: OverpassCatalogStore | None = None,
     client: OverpassClient | None = None,
     state_path: str | Path = DEFAULT_STATE_PATH,
+    priorities: set[int] | None = None,
     sleep=time.sleep,
 ) -> dict:
-    """Ejecuta en secuencia, con límite duro, caché incremental y cero reintentos.
+    """Ejecuta un lote secuencial con presupuesto duro y reanudación local.
 
-    Ante HTTP 429 se conserva el estado y se detiene. El usuario podrá esperar
-    y reanudar: las cajas completas salen de caché y la fallida se vuelve a
-    intentar solo en una invocación posterior.
+    ``max_requests`` limita intentos HTTP de esta invocación. Cada región
+    puede causar como máximo una solicitud; no hay reintentos automáticos.
+    ``priorities`` restringe el alcance sin cambiar la huella del manifiesto.
+    Ante cualquier error se guarda el estado y se detiene el lote.
     """
-    if max_requests < 0 or plan.planned_requests > max_requests:
-        raise ValueError(
-            f"el plan requiere {plan.planned_requests} consultas; presupuesto máximo={max_requests}"
-        )
+    if max_requests < 0:
+        raise ValueError("max_requests no puede ser negativo")
     if not math.isfinite(minimum_interval_seconds) or minimum_interval_seconds < 0:
         raise ValueError("minimum_interval_seconds debe ser finito y no negativo")
+    unknown_priorities = (priorities or set()) - {region.priority for region in plan.regions}
+    if unknown_priorities:
+        raise ValueError(f"prioridades inexistentes en el plan: {sorted(unknown_priorities)}")
     store = store or OverpassCatalogStore("data")
     client = client or OverpassClient()
     target = Path(state_path)
@@ -279,23 +282,43 @@ def execute_plan(
         ready_at = datetime.fromisoformat(cooldown_until)
         if datetime.now(timezone.utc) < ready_at:
             raise ValueError(f"Overpass indicó HTTP 429; reanude después de {cooldown_until}")
+        state.pop("cooldown_until_utc", None)
+    state.pop("stop_reason", None)
     http_requests = 0
     skipped_cached = 0
     failed = 0
+    attempted_regions = 0
     last_request_at: float | None = None
-    for region in plan.regions:
+    selected_regions = tuple(
+        region for region in plan.regions
+        if priorities is None or region.priority in priorities
+    )
+    # Un presupuesto de N solicitudes permite intentar como máximo N regiones
+    # pendientes; cada consulta regional genera cero o una llamada, nunca más.
+    unresolved = tuple(
+        region for region in selected_regions
+        if state["regions"].get(region.region_id, {}).get("status") != "adquirida"
+    )
+    batch_region_ids = {region.region_id for region in unresolved[:max_requests]}
+    for region in selected_regions:
         entry = state["regions"].get(region.region_id, {})
         if entry.get("status") == "adquirida":
             skipped_cached += 1
             continue
+        if region.region_id not in batch_region_ids:
+            continue
+        attempted_regions += 1
         if last_request_at is not None:
             remaining = minimum_interval_seconds - (time.monotonic() - last_request_at)
             if remaining > 0:
                 sleep(remaining)
+        http_before = getattr(client, "http_attempts", None)
         try:
             _, fetched = store.get_or_fetch(client, region.bbox)
             if fetched:
-                http_requests += 1
+                http_after = getattr(client, "http_attempts", None)
+                measured = (http_after - http_before) if http_before is not None and http_after is not None else None
+                http_requests += measured if measured is not None else 1
                 last_request_at = time.monotonic()
             else:
                 skipped_cached += 1
@@ -307,12 +330,28 @@ def execute_plan(
             _save_state(target, state)
         except OverpassError as exc:
             failed += 1
-            # El cliente solo produce OverpassError después de intentar el POST.
-            http_requests += 1
+            http_after = getattr(client, "http_attempts", None)
+            measured = (http_after - http_before) if http_before is not None and http_after is not None else None
+            attempts = measured if measured is not None else 1
+            http_requests += attempts
+            failure_count = int(entry.get("failure_count", 0)) + 1
+            repeated_server_error = (
+                int(entry.get("http_status") or 0) >= 500
+                and int(exc.status_code or 0) >= 500
+            )
+            if exc.status_code == 429:
+                stop_reason = "HTTP 429: limitación de frecuencia/cuota; detener y esperar antes de reanudar"
+            elif exc.status_code is not None and exc.status_code >= 500:
+                stop_reason = f"HTTP {exc.status_code}: timeout/error del servidor; lote detenido sin reintentos"
+            else:
+                stop_reason = f"HTTP {exc.status_code}: error de transporte; lote detenido sin reintentos"
+            if repeated_server_error:
+                stop_reason = f"HTTP {exc.status_code} recurrente en {region.region_id}; pausa y reduzca la caja antes de reanudar"
             state["regions"][region.region_id] = {
                 "status": "error", "bbox": region.as_dict()["bbox_south_west_north_east"],
                 "route_ids": list(region.route_ids), "http_status": exc.status_code,
-                "error": str(exc), "failed_at_utc": datetime.now(timezone.utc).isoformat(),
+                "error": str(exc), "failure_count": failure_count,
+                "failed_at_utc": datetime.now(timezone.utc).isoformat(),
             }
             _save_state(target, state)
             if exc.status_code == 429:
@@ -321,19 +360,34 @@ def execute_plan(
                     datetime.now(timezone.utc) + timedelta(seconds=30)
                 ).isoformat()
                 _save_state(target, state)
+            else:
+                state["stop_reason"] = stop_reason
+                _save_state(target, state)
             break
         except Exception as exc:  # conservar el progreso si parser/escritura/transporte falla
             failed += 1
+            http_after = getattr(client, "http_attempts", None)
+            measured = (http_after - http_before) if http_before is not None and http_after is not None else None
+            attempts = measured if measured is not None else 1
+            http_requests += attempts
             state["regions"][region.region_id] = {
                 "status": "error", "bbox": region.as_dict()["bbox_south_west_north_east"],
                 "route_ids": list(region.route_ids), "error": type(exc).__name__,
+                "failure_count": int(entry.get("failure_count", 0)) + 1,
                 "failed_at_utc": datetime.now(timezone.utc).isoformat(),
             }
+            state["stop_reason"] = f"{type(exc).__name__}: lote detenido para preservar el progreso; sin reintentos"
             _save_state(target, state)
             break
+    statuses = [state["regions"].get(region.region_id, {}).get("status") for region in plan.regions]
     result = {
         "planned_requests": plan.planned_requests, "http_requests": http_requests,
+        "selected_regions": len(selected_regions), "attempted_regions": attempted_regions,
+        "completed_total": sum(status == "adquirida" for status in statuses),
+        "failed_total": sum(status == "error" for status in statuses),
+        "pending_total": sum(status not in {"adquirida", "error"} for status in statuses),
         "skipped_cached": skipped_cached, "failed": failed,
+        "stop_reason": state.get("stop_reason"),
         "state_file": str(target), "raw_directory": str(store.raw_dir),
         "processed_directory": str(store.processed_dir),
     }
@@ -367,7 +421,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--margin-m", type=float, default=2_000.0)
     parser.add_argument("--execute", action="store_true", help="habilita explícitamente llamadas Overpass")
     parser.add_argument("--max-requests", type=int, default=0,
-                        help="límite duro de solicitudes; el plan debe caber antes de ejecutar")
+                        help="límite duro de solicitudes HTTP en esta invocación; permite lotes parciales")
+    parser.add_argument("--priority", type=int, action="append", choices=(0, 1),
+                        help="ejecuta solo regiones de esta prioridad; 0 prioriza Bilbao–Zaragoza")
     parser.add_argument("--interval-seconds", type=float, default=2.0)
     parser.add_argument("--state", type=Path, default=DEFAULT_STATE_PATH)
     args = parser.parse_args(argv)
@@ -386,12 +442,9 @@ def main(argv: list[str] | None = None) -> int:
         if not args.execute:
             print("Modo planificación: no se hizo ninguna solicitud de red.")
             return 0
-        if args.max_requests < plan.planned_requests:
-            raise ValueError(
-                f"se requieren --max-requests {plan.planned_requests} como mínimo; no se realizó ninguna solicitud"
-            )
         result = execute_plan(plan, max_requests=args.max_requests,
-                              minimum_interval_seconds=args.interval_seconds, state_path=args.state)
+                              minimum_interval_seconds=args.interval_seconds, state_path=args.state,
+                              priorities=set(args.priority) if args.priority is not None else None)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0 if result["failed"] == 0 else 2
     except (OSError, ValueError, json.JSONDecodeError) as exc:

@@ -118,6 +118,9 @@ class OverpassClient:
         self.endpoint = endpoint
         self.timeout_seconds = timeout_seconds
         self.opener = opener
+        # Instrumentación para contabilizar solicitudes también si el parseo
+        # o la persistencia fallan después de recibir una respuesta HTTP.
+        self.http_attempts = 0
 
     def fetch_bbox(self, bbox: BoundingBox) -> tuple[TollInfrastructure, ...]:
         """Ejecuta una sola consulta para la caja indicada; sin reintentos implícitos."""
@@ -133,6 +136,7 @@ class OverpassClient:
             method="POST",
         )
         try:
+            self.http_attempts += 1
             with self.opener(request, timeout=self.timeout_seconds) as response:
                 payload = json.loads(response.read().decode("utf-8"))
         except HTTPError as exc:

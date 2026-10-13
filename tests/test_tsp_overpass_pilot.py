@@ -59,8 +59,13 @@ def test_plan_fingerprint_tracks_local_geometry_and_parameters():
     assert plan_overpass_regions([first]).fingerprint != plan_overpass_regions([first], margin_m=2_500).fingerprint
 
 
-def test_execute_checks_budget_before_any_request_and_persists_success_for_resume(tmp_path):
-    plan = plan_overpass_regions([_route("a", "b", "route", [(-3.0, 40.0), (-2.9, 40.0)])])
+def test_execute_allows_small_batches_and_persists_success_for_resume(tmp_path):
+    routes = [
+        _route("bizkaia", "zaragoza", "priority", [(-3.0, 40.0), (-2.9, 40.0)]),
+        _route("a", "b", "other", [(-1.0, 40.0), (-0.9, 40.0)]),
+    ]
+    plan = plan_overpass_regions(routes, cell_degrees=0.1, margin_m=0)
+    assert plan.planned_requests > 1
 
     class FakeStore:
         raw_dir = tmp_path / "raw"
@@ -71,25 +76,84 @@ def test_execute_checks_budget_before_any_request_and_persists_success_for_resum
 
         def get_or_fetch(self, client, bbox):
             self.calls += 1
+            client.http_attempts += 1  # simula un POST, sin red
             return (), True
 
     store = FakeStore()
     state_path = tmp_path / "state.json"
-    with pytest.raises(ValueError, match="presupuesto"):
-        execute_plan(plan, max_requests=plan.planned_requests - 1,
-                     store=store, state_path=state_path, sleep=lambda _: None)
-    assert store.calls == 0
-
-    result = execute_plan(plan, max_requests=plan.planned_requests,
+    # Priority 0 permite lotes chicos aun cuando el plan completo sea mayor.
+    result = execute_plan(plan, max_requests=1, priorities={0},
                           store=store, state_path=state_path, sleep=lambda _: None)
-    assert result["http_requests"] == plan.planned_requests
+    assert result["http_requests"] == 1
     assert result["failed"] == 0
-    resumed = execute_plan(plan, max_requests=plan.planned_requests,
+    assert result["completed_total"] == 1
+    assert result["pending_total"] == plan.planned_requests - 1
+    resumed = execute_plan(plan, max_requests=1, priorities={0},
                            store=store, state_path=state_path, sleep=lambda _: None)
-    assert resumed["http_requests"] == 0
-    assert resumed["skipped_cached"] == plan.planned_requests
-    assert store.calls == plan.planned_requests
+    assert resumed["http_requests"] == 1
+    assert resumed["completed_total"] == 2
+    assert store.calls == 2
+    # Una nueva ejecución omite las dos celdas concluidas y no consulta si ya
+    # no quedan celdas seleccionadas pendientes dentro de prioridad 0.
+    resumed_again = execute_plan(plan, max_requests=1, priorities={0},
+                                 store=store, state_path=state_path, sleep=lambda _: None)
+    assert resumed_again["http_requests"] == 0
+    assert resumed_again["skipped_cached"] == 2
+    assert store.calls == 2
     assert json.loads(state_path.read_text(encoding="utf-8"))["regions"]
+
+
+def test_execute_can_scope_to_priority_zero_and_reports_plan_wide_state(tmp_path):
+    routes = [
+        _route("bizkaia", "zaragoza", "bz", [(-3.0, 40.0), (-2.9, 40.0)]),
+        _route("a", "b", "other", [(1.0, 40.0), (1.1, 40.0)]),
+    ]
+    plan = plan_overpass_regions(routes, cell_degrees=0.1, margin_m=0)
+    selected_count = sum(region.priority == 0 for region in plan.regions)
+    assert selected_count > 0
+
+    class FakeStore:
+        raw_dir = tmp_path / "raw"
+        processed_dir = tmp_path / "processed"
+        calls = 0
+
+        def get_or_fetch(self, client, bbox):
+            self.calls += 1
+            client.http_attempts += 1  # simula un POST, sin red
+            return (), True
+
+    store = FakeStore()
+    result = execute_plan(plan, max_requests=1, priorities={0}, store=store,
+                          state_path=tmp_path / "state.json", sleep=lambda _: None)
+    assert result["selected_regions"] == selected_count
+    assert result["http_requests"] == 1
+    assert result["pending_total"] == plan.planned_requests - 1
+    assert store.calls == 1
+
+
+def test_execute_stops_after_first_504_and_marks_recurrent_server_saturation(tmp_path):
+    plan = plan_overpass_regions([_route("a", "b", "route", [(-3.0, 40.0), (-2.9, 40.0)])])
+
+    class BusyStore:
+        raw_dir = tmp_path / "raw"
+        processed_dir = tmp_path / "processed"
+        calls = 0
+
+        def get_or_fetch(self, client, bbox):
+            self.calls += 1
+            client.http_attempts += 1  # simula un POST que devuelve 504, sin red
+            raise OverpassError("Overpass respondió HTTP 504", status_code=504)
+
+    store = BusyStore()
+    state_path = tmp_path / "state.json"
+    first = execute_plan(plan, max_requests=1, store=store, state_path=state_path, sleep=lambda _: None)
+    assert first["http_requests"] == 1
+    assert first["failed_total"] == 1
+    assert "HTTP 504" in first["stop_reason"]
+    second = execute_plan(plan, max_requests=1, store=store, state_path=state_path, sleep=lambda _: None)
+    assert second["http_requests"] == 1
+    assert "recurrente" in second["stop_reason"]
+    assert store.calls == 2
 
 
 def test_execute_stops_and_saves_state_on_http_429(tmp_path):
@@ -104,6 +168,7 @@ def test_execute_stops_and_saves_state_on_http_429(tmp_path):
 
         def get_or_fetch(self, client, bbox):
             self.calls += 1
+            client.http_attempts += 1  # simula un POST que devuelve 429, sin red
             raise OverpassError("Overpass respondió HTTP 429", status_code=429)
 
     store = BusyStore()

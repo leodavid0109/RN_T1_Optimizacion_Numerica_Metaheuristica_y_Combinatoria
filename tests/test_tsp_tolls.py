@@ -80,8 +80,10 @@ def test_overpass_client_posts_one_bounded_query_with_fake_transport():
         calls.append((request, timeout))
         return Response()
 
-    records = OverpassClient(opener=opener).fetch_bbox(BoundingBox(39.9, -4.1, 40.1, -3.9))
+    client = OverpassClient(opener=opener)
+    records = client.fetch_bbox(BoundingBox(39.9, -4.1, 40.1, -3.9))
     assert len(calls) == 1
+    assert client.http_attempts == 1
     assert calls[0][0].method == "POST"
     assert {record.stable_id for record in records} == {"osm:node/101", "osm:way/202"}
 
@@ -90,9 +92,11 @@ def test_overpass_client_preserves_http_status_for_rate_limit_handling():
     def rate_limited_opener(request, timeout):
         raise HTTPError(request.full_url, 429, "Too Many Requests", {}, None)
 
+    client = OverpassClient(opener=rate_limited_opener)
     with pytest.raises(OverpassError, match="HTTP 429") as error:
-        OverpassClient(opener=rate_limited_opener).fetch_bbox(BoundingBox(39.9, -4.1, 40.1, -3.9))
+        client.fetch_bbox(BoundingBox(39.9, -4.1, 40.1, -3.9))
     assert error.value.status_code == 429
+    assert client.http_attempts == 1
 
 
 def test_overpass_store_reuses_valid_cache_and_refreshes_only_explicitly(tmp_path):
