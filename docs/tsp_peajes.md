@@ -3,7 +3,8 @@
 **Estado al 2026-10-12:** se ejecutó localmente una parte del piloto Overpass:
 una de 35 regiones quedó adquirida, una falló con HTTP 504 y 33 permanecen
 pendientes. Se generaron informes offline del snapshot disponible. No se
-asignaron tarifas a las 12 rutas ORS.
+asignaron tarifas a las 12 rutas ORS. El ETL y sus validaciones están
+implementados, pero las matrices económicas nacionales todavía no existen.
 
 ## 1. Fuentes y qué prueban
 
@@ -265,6 +266,79 @@ inventario local para todos los cruces. OSM es una base colaborativa: deben
 registrarse `osm_base`, fecha efectiva, instancia, consultas, IDs y atribución;
 faltantes cartográficos requieren fuentes oficiales y revisión, y los datos
 OSM redistribuidos deben cumplir ODbL.
+
+## 8. Diagnóstico y reanudación del piloto HTTP
+
+La consulta regional está acotada por `[timeout:25]` en Overpass QL. El
+transporte Python permite hasta 45 segundos para recibir la respuesta. Cada
+caja produce como máximo un POST y el cliente no reintenta automáticamente.
+La consulta contiene tres selectores `nwr` y pide `out body geom`; expandir
+geometrías de vías y relaciones puede elevar el trabajo y el tamaño de respuesta.
+La única respuesta observada ocupó una caja con 46 elementos, entre ellos una
+relación extensa AP-68. Esto es consistente con un timeout del servidor, pero
+no prueba por sí solo la causa interna del 504.
+
+HTTP 504 significa que un gateway/servidor no obtuvo a tiempo una respuesta de
+su upstream. HTTP 429 indica limitación o saturación por política de tasa. Son
+estados distintos: el 504 observado no demuestra agotamiento de cuota. La
+aplicación se detiene ante el primer error, conserva archivos/estado de las
+regiones adquiridas y no reintenta dentro de la misma ejecución. En la siguiente
+ejecución omite las regiones `adquirida` y puede volver a intentar la región
+fallida; si vuelve a fallar con 5xx, marca saturación recurrente y detiene el
+lote. El estado y la caché no se borran.
+
+La CLI ahora acepta `--priority 0` para limitar el lote a las regiones
+prioritarias que cubren Bilbao–Zaragoza y admite un presupuesto parcial con
+`--max-requests N`. Se cuentan por separado las llamadas HTTP y las regiones
+completadas, fallidas y pendientes en todo el manifiesto. Se recomienda una
+solicitud por ejecución y un intervalo de al menos cinco segundos después de
+un 504; no se recomienda repetir de inmediato la misma caja. No se hizo una
+nueva llamada como parte de este cambio.
+
+Comando preparado para reanudar solo las celdas prioritarias en lotes de una
+solicitud (no ejecutado en esta revisión):
+
+```powershell
+python -m src.tsp.etl.overpass_pilot --execute --priority 0 --max-requests 1 --interval-seconds 5
+```
+
+Para reducir la carga de una región que vuelve a fallar, debe regenerarse un
+plan más fino (por ejemplo, `--cell-degrees 0.25`) y conservar el manifiesto y
+estado anteriores. Un cambio de parámetros crea otra huella de plan; por eso
+no se debe reutilizar silenciosamente el estado anterior. Las respuestas en
+`data/raw/tolls/` y los datos derivados en `data/processed/tolls/` siguen
+excluidos de Git mientras se termina la revisión de redistribución ODbL.
+
+## 9. Lista de verificación para confirmar costo AP-68
+
+El valor nominal de 39,90 EUR del tarifario 2026 para clase ligera Bilbao →
+Zaragoza no se asigna todavía a ninguna alternativa. Para elevar el hallazgo
+cartográfico a un costo monetario verificable deben quedar registrados y
+revisados todos estos puntos:
+
+1. **Entrada y salida:** asociar los extremos de la sección tarifada con las
+   estaciones oficiales del tarifario; no basta con los nombres de las ciudades.
+2. **Cobertura de ruta:** demostrar que la geometría recorre la sección completa
+   que corresponde a la pareja tarifaria y no una parte o un enlace próximo.
+3. **Sentido y calzada:** comprobar sentido de circulación, calzada y enlaces
+   usados. La coincidencia de una relación OSM bidireccional no los determina.
+4. **Categoría:** confirmar que BMW 120 corresponde a la categoría oficial
+   `Ligeros` para esa tarifa.
+5. **Fecha de vigencia:** comprobar que la tarifa citada está vigente en la
+   fecha de referencia del experimento y segmentar cualquier cambio de
+   operador/regla en el tramo alavés.
+6. **Horario y pago:** verificar recargos, bonificaciones, descuentos,
+   dispositivos de pago y condiciones horarias aplicables; registrar la tarifa
+   base si no se modela una condición personal.
+7. **Fuente y extracción:** guardar URL/documento, fecha de consulta, fecha de
+   vigencia, página/tabla/celda y regla de lectura de la tarifa.
+8. **Revisión independiente:** una segunda persona coteja la correspondencia
+   ruta-estaciones y el importe antes de cambiar el estado a verificado.
+
+Hasta completar la lista, el estado del peaje permanece `desconocido` y el
+costo económico de esa conexión no es verificable. La relación AP-68 y sus
+ways miembro son representaciones cartográficas solapadas de una infraestructura,
+no cobros independientes; nunca se suman por separado.
 En la única celda adquirida, la relación AP-68 de OSM se alinea aproximadamente
 290,9 km con cada geometría ORS `fastest` Bilbao ↔ Zaragoza. Las candidatas
 `avoid_tolls` también se alinean localmente unos 332 m y 259 m con esa relación.
