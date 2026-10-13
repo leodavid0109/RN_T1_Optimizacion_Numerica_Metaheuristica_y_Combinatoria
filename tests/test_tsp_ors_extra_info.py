@@ -12,9 +12,11 @@ from experiments.analyze_tsp_ors_extras import analyze_saved_routes
 from src.tsp.cities import City
 from src.tsp.etl.acquisition import AcquisitionManager, AcquisitionRequest
 from src.tsp.etl.ors import OpenRouteServiceProvider, ProviderError
-from src.tsp.etl.ors_extras import analyze_geojson_extras, plan_overpass_way_queries
+from src.tsp.etl.ors_extras import (analyze_geojson_extras, decode_waycategory_mask,
+                                    plan_overpass_way_queries)
 from src.tsp.etl.store import RouteStore
-from src.tsp.etl.toll_infrastructure import OverpassCatalogStore, OverpassClient, OverpassError
+from src.tsp.etl.toll_infrastructure import (OverpassCatalogStore, OverpassClient, OverpassError,
+                                             overpass_node_ids_query)
 
 
 def _city(city_id: str, lon: float) -> City:
@@ -77,6 +79,8 @@ def test_extra_sections_indices_and_unknown_monetary_toll():
     assert row["toll_sections"][0]["start_index"] == 2
     assert row["toll_sections"][0]["end_index"] == 4
     assert row["toll_cost_eur"] is None and row["toll_verification"] == "UNKNOWN"
+    assert row["toll_sections"][0]["waycategory_names"] == ["Highway", "Tollways"]
+    assert decode_waycategory_mask(0) == ()
 
 
 def test_cartographic_zero_missing_extras_and_invalid_overlap():
@@ -192,3 +196,28 @@ def test_overpass_way_lookup_caches_and_recovers_after_504(tmp_path: Path):
     assert acquired is True and repeated is False and first == cached == payload
     assert client.http_attempts == 1 and len(requests) == 1
     assert "way%28id%3A101%2C103%29" in requests[0]
+
+
+def test_overpass_known_node_lookup_is_exact_bounded_and_incremental(tmp_path: Path):
+    assert overpass_node_ids_query([41270656, 35292790]) == (
+        "[out:json][timeout:25];node(id:35292790,41270656);out body;"
+    )
+    store = OverpassCatalogStore(tmp_path)
+    payload = {"elements": [{"type": "node", "id": 35292790,
+                             "lat": 41.777228, "lon": -1.124528,
+                             "tags": {"barrier": "toll_booth", "name": "Peaje de Alagon"}}]}
+    requests = []
+
+    def available(request, timeout):
+        requests.append(request.data.decode())
+        return _Response(payload)
+
+    client = OverpassClient(opener=available)
+    first, fetched = store.get_or_fetch_node_ids(client, (41270656, 35292790))
+    cached, fetched_again = store.get_or_fetch_node_ids(client, (35292790, 41270656))
+    assert first == cached == payload
+    assert fetched is True and fetched_again is False
+    assert client.http_attempts == len(requests) == 1
+    assert "node%28id%3A35292790%2C41270656%29" in requests[0]
+    with pytest.raises(ValueError, match="entre 1 y 50"):
+        overpass_node_ids_query(range(1, 52))

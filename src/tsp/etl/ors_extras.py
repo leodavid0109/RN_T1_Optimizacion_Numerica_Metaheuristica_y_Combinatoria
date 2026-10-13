@@ -14,6 +14,17 @@ from .toll_infrastructure import overpass_way_ids_query
 
 
 EXTRA_RESPONSE_KEYS = {"tollways": "tollways", "osmid": "osmId", "waycategory": "waycategory"}
+WAYCATEGORY_BITS = {1: "Highway", 2: "Tollways", 4: "Steps", 8: "Ferry", 16: "Ford"}
+
+
+def decode_waycategory_mask(value: int) -> tuple[str, ...]:
+    """Descompone el campo oficial waycategory como máscara de bits."""
+    if type(value) is not int or value < 0:
+        raise ValueError("waycategory debe ser una máscara entera no negativa")
+    names = tuple(name for bit, name in WAYCATEGORY_BITS.items() if value & bit)
+    unknown = value & ~sum(WAYCATEGORY_BITS)
+    return (*names, *((f"unknown_bit_{bit}" for bit in range(5, max(5, value.bit_length()))
+                      if unknown & (1 << bit))))
 
 
 def analyze_geojson_extras(response: dict, *, required: tuple[str, ...] = ()) -> tuple[dict, ...]:
@@ -115,7 +126,10 @@ def analyze_geojson_extras(response: dict, *, required: tuple[str, ...] = ()) ->
                                  if max(start, left) < min(end, right)})
             toll_sections.append({"start_index": start, "end_index": end,
                                   "start_lon_lat": geometry[start], "end_lon_lat": geometry[end],
-                                  "osm_way_ids": osm_ids, "waycategory_values": categories})
+                                  "geometry_coordinates": geometry[start:end + 1],
+                                  "osm_way_ids": osm_ids, "waycategory_values": categories,
+                                  "waycategory_names": sorted({name for category in categories
+                                      for name in decode_waycategory_mask(category)})})
         digest = sha256(json.dumps(geometry, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
         results.append({"feature_index": feature_index, "geometry_sha256": digest,
                         "geometry_point_count": len(geometry), "distance_km": distance_km,
@@ -127,6 +141,9 @@ def analyze_geojson_extras(response: dict, *, required: tuple[str, ...] = ()) ->
                                                 if value > 0}),
                         "waycategory_values": sorted({value for _, _, value in
                                                       sections_by_key.get("waycategory", ())}),
+                        "waycategory_names": sorted({name for _, _, value in
+                            sections_by_key.get("waycategory", ())
+                            for name in decode_waycategory_mask(value)}),
                         "warnings": warnings,
                         "toll_cost_eur": None, "toll_verification": "UNKNOWN"})
     return tuple(results)

@@ -28,12 +28,24 @@ OVERPASS_SOURCE = "OpenStreetMap/Overpass API"
 
 def overpass_way_ids_query(osm_way_ids: Iterable[int]) -> str:
     """Consulta acotada por IDs de vías, sin búsqueda espacial extensa."""
-    ids = tuple(osm_way_ids)
+    return _overpass_ids_query("way", osm_way_ids)
+
+
+def overpass_node_ids_query(osm_node_ids: Iterable[int]) -> str:
+    """Consulta acotada por IDs de nodos OSM conocidos."""
+    return _overpass_ids_query("node", osm_node_ids)
+
+
+def _overpass_ids_query(osm_type: str, values: Iterable[int]) -> str:
+    if osm_type not in {"node", "way"}:
+        raise ValueError("la consulta puntual solo admite nodos y vías")
+    ids = tuple(values)
     if not ids or len(ids) > 50 or any(type(value) is not int or value <= 0 for value in ids):
-        raise ValueError("se requieren entre 1 y 50 IDs OSM de vías positivos")
+        raise ValueError("se requieren entre 1 y 50 IDs OSM positivos")
     if len(ids) != len(set(ids)):
         raise ValueError("los IDs OSM de vías no deben repetirse en un lote")
-    return f"[out:json][timeout:25];way(id:{','.join(map(str, sorted(ids)))});out body geom;"
+    geometry_output = " geom" if osm_type == "way" else ""
+    return f"[out:json][timeout:25];{osm_type}(id:{','.join(map(str, sorted(ids)))});out body{geometry_output};"
 
 
 @dataclass(frozen=True)
@@ -144,6 +156,10 @@ class OverpassClient:
         """Una solicitud explícita por hasta 50 IDs, sin reintentos implícitos."""
         return self._fetch_query_payload(overpass_way_ids_query(osm_way_ids))
 
+    def fetch_node_ids_payload(self, osm_node_ids: Iterable[int]) -> dict:
+        """Una solicitud explícita por hasta 50 nodos conocidos, sin reintentos."""
+        return self._fetch_query_payload(overpass_node_ids_query(osm_node_ids))
+
     def _fetch_query_payload(self, query: str) -> dict:
         request = Request(
             self.endpoint,
@@ -227,10 +243,21 @@ class OverpassCatalogStore:
         La llamada explícita hace como máximo un HTTP. Conserva el JSON crudo,
         incluso si la vía no lleva etiqueta de peaje. No declara cobertura.
         """
-        osm_way_ids = tuple(osm_way_ids)
-        query = overpass_way_ids_query(osm_way_ids)
+        return self._get_or_fetch_ids(client, "way", tuple(osm_way_ids))
+
+    def get_or_fetch_node_ids(
+        self, client: OverpassClient, osm_node_ids: Iterable[int],
+    ) -> tuple[dict, bool]:
+        """Caché por IDs de nodos conocidos, útil para revisar estaciones locales."""
+        return self._get_or_fetch_ids(client, "node", tuple(osm_node_ids))
+
+    def _get_or_fetch_ids(self, client: OverpassClient, osm_type: str,
+                          osm_ids: tuple[int, ...]) -> tuple[dict, bool]:
+        query_builder = overpass_way_ids_query if osm_type == "way" else overpass_node_ids_query
+        query = query_builder(osm_ids)
         fingerprint = sha256(query.encode("utf-8")).hexdigest()[:20]
-        metadata_path = self.processed_dir / f"osm_ways_{fingerprint}.metadata.json"
+        prefix = f"osm_{osm_type}s"
+        metadata_path = self.processed_dir / f"{prefix}_{fingerprint}.metadata.json"
         if metadata_path.exists():
             metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
             if metadata.get("status") == "acquired":
@@ -238,7 +265,8 @@ class OverpassCatalogStore:
                 if raw_path.exists():
                     return json.loads(raw_path.read_text(encoding="utf-8")), False
         try:
-            payload = client.fetch_way_ids_payload(osm_way_ids)
+            fetch = client.fetch_way_ids_payload if osm_type == "way" else client.fetch_node_ids_payload
+            payload = fetch(osm_ids)
         except OverpassError as exc:
             self.processed_dir.mkdir(parents=True, exist_ok=True)
             metadata_path.write_text(json.dumps({
@@ -250,7 +278,7 @@ class OverpassCatalogStore:
             raise
         acquired_at = datetime.now(timezone.utc).isoformat()
         payload_digest = sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:12]
-        raw_path = self.raw_dir / f"osm_ways_{fingerprint}_{payload_digest}.json"
+        raw_path = self.raw_dir / f"{prefix}_{fingerprint}_{payload_digest}.json"
         self.raw_dir.mkdir(parents=True, exist_ok=True)
         self.processed_dir.mkdir(parents=True, exist_ok=True)
         raw_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
