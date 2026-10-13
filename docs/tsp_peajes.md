@@ -63,6 +63,8 @@ para subirlos al repositorio.
 
 ## 3. Cruce espacial con las 12 rutas locales
 
+`match_route_alternatives_to_infrastructure` cruza alternativas cargadas del
+catálogo ETL con el inventario local; falla si falta alguna geometría.
 `match_infrastructure_to_route` mide la distancia mínima de las geometrías y
 devuelve una fracción aproximada del avance de ruta, un umbral explícito y las
 etiquetas que dan contexto de sentido. El nivel de resultado es siempre

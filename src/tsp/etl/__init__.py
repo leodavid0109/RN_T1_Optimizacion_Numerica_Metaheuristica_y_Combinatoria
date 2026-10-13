@@ -12,7 +12,8 @@ from .ors import OpenRouteServiceProvider, ProviderError, parse_ors_geojson, par
 from .store import RouteStore
 from .toll_infrastructure import (
     BoundingBox, OverpassCatalogStore, OverpassClient, OverpassError, RouteMatchCandidate, TollInfrastructure,
-    load_infrastructure_catalog, match_infrastructure_to_route, parse_overpass_response,
+    load_infrastructure_catalog, match_infrastructure_to_route, match_route_alternatives_to_infrastructure,
+    parse_overpass_response,
     save_infrastructure_catalog,
 )
 from .toll_tariffs import (
@@ -27,7 +28,8 @@ __all__ = [
     "RouteStore", "build_matrix_files", "parse_ors_geojson", "parse_ors_matrix",
     "BoundingBox", "OverpassCatalogStore", "OverpassClient", "OverpassError", "RouteMatchCandidate",
     "TollInfrastructure",
-    "load_infrastructure_catalog", "match_infrastructure_to_route", "parse_overpass_response",
+    "load_infrastructure_catalog", "match_infrastructure_to_route",
+    "match_route_alternatives_to_infrastructure", "parse_overpass_response",
     "save_infrastructure_catalog",
     "RouteTollAssessment", "RouteTollSection", "TollTariff", "apply_toll_assessment",
     "assess_route_tolls", "export_official_tariffs_csv", "import_official_tariffs_csv",

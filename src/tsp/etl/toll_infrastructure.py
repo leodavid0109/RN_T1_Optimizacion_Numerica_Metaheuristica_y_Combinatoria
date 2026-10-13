@@ -19,6 +19,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+from ..alternatives import RouteAlternative
+
 
 OVERPASS_ENDPOINT = "https://overpass-api.de/api/interpreter"
 OVERPASS_SOURCE = "OpenStreetMap/Overpass API"
@@ -328,6 +330,30 @@ def match_infrastructure_to_route(
                 "candidato_proximidad", (f"distancia_geometrica<={radius_m:g}m",), direction,
             ))
     return tuple(sorted(matches, key=lambda item: (item.route_fraction, item.infrastructure_id)))
+
+
+def match_route_alternatives_to_infrastructure(
+    routes: Iterable[RouteAlternative],
+    infrastructure: Iterable[TollInfrastructure],
+    *,
+    radius_m: float = 35.0,
+) -> tuple[RouteMatchCandidate, ...]:
+    """Cruza el catálogo local de alternativas con un inventario OSM cargado.
+
+    El método es offline y falla explícitamente si una alternativa no conserva
+    geometría, en lugar de presentar una cobertura parcial como análisis final.
+    """
+    routes, infrastructure = tuple(routes), tuple(infrastructure)
+    missing_geometry = [route.alternative_id for route in routes if route.geometry_lon_lat is None]
+    if missing_geometry:
+        raise ValueError("faltan geometrías para: " + ", ".join(missing_geometry))
+    return tuple(
+        candidate
+        for route in routes
+        for candidate in match_infrastructure_to_route(
+            route.alternative_id, route.geometry_lon_lat or (), infrastructure, radius_m=radius_m
+        )
+    )
 
 
 def _classify_tags(tags: dict) -> str | None:

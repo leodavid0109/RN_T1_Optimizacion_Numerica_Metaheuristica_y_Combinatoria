@@ -9,7 +9,8 @@ from src.tsp.alternatives import RouteAlternative, TollStatus
 from src.tsp.etl import (
     BoundingBox, OverpassCatalogStore, OverpassClient, RouteTollSection, TollTariff, apply_toll_assessment,
     assess_route_tolls, import_official_tariffs_csv, load_infrastructure_catalog,
-    match_infrastructure_to_route, parse_overpass_response, save_infrastructure_catalog,
+    match_infrastructure_to_route, match_route_alternatives_to_infrastructure,
+    parse_overpass_response, save_infrastructure_catalog,
 )
 from src.tsp.etl.toll_tariffs import TARIFF_FIELDS
 
@@ -152,6 +153,24 @@ def test_route_match_checks_polyline_crossing_not_only_feature_vertices():
     matches = match_infrastructure_to_route("route", ((-4.0, 40.0), (-3.99, 40.0)), crossing_way, radius_m=5)
     assert len(matches) == 1
     assert matches[0].minimum_distance_m == pytest.approx(0)
+
+
+def test_offline_join_accepts_local_route_alternatives_and_requires_geometries():
+    feature = parse_overpass_response(_overpass_fixture(), acquired_at="2026-10-12T10:00:00+00:00")
+    route = RouteAlternative(
+        "x", "y", "route-xy", "route-xy", 10, 1, TollStatus.UNKNOWN, None,
+        "synthetic", "1", "car", "fixture", "2026-10-12",
+        geometry_lon_lat=((-4.0, 40.0), (-3.99, 40.0)),
+    )
+    matches = match_route_alternatives_to_infrastructure([route], feature, radius_m=30)
+    assert matches
+    assert {match.route_id for match in matches} == {"route-xy"}
+    route_without_geometry = RouteAlternative(
+        "x", "y", "route-no-geometry", "route-no-geometry", 10, 1, TollStatus.UNKNOWN, None,
+        "synthetic", "1", "car", "fixture", "2026-10-12",
+    )
+    with pytest.raises(ValueError, match="faltan geometrías"):
+        match_route_alternatives_to_infrastructure([route_without_geometry], feature)
 
 
 def test_match_rejects_bad_route_and_invalid_feature_distance():
