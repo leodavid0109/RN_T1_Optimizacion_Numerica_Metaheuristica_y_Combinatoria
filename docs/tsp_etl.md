@@ -141,6 +141,32 @@ Para habilitar la ejecución, cada lote debe declarar además `--max-http-reques
 
 Al planificar sin ejecución el cliente no necesita clave ni abre conexión. Se recomienda ejecutar en dos lotes para que el equipo pueda aprobar uno o ambos presupuestos por separado. Por cada ejecución, el almacenamiento actual escribe el catálogo incremental `data/processed/routes/route_alternatives.csv`, estado `data/processed/routes/acquisition_state.json` y una respuesta cruda JSON por solicitud bajo `data/raw/routes/`. Las matrices se regeneran después con el constructor offline.
 
+#### Ejecución local de un único arco con un intento
+
+Si el entorno de Codex no tiene salida HTTPS al proveedor, la adquisición puede ejecutarse desde PowerShell en la máquina local, desde la raíz del repositorio y con `.venv` activo. La clave debe estar en `ORS_API_KEY` del entorno actual; no se copia en el comando ni en archivos. Primero puede revisarse el plan sin red:
+
+```powershell
+& .\.venv\Scripts\python.exe -m experiments.acquire_tsp_routes `
+  --pairs madrid:toledo --strategy fastest --max-requests 1
+```
+
+Solo después de revisar ese plan, el comando de ejecución explícita es:
+
+```powershell
+& .\.venv\Scripts\python.exe -m experiments.acquire_tsp_routes `
+  --pairs madrid:toledo --strategy fastest --max-requests 1 `
+  --max-http-requests 1 --max-retries 0 --execute
+```
+
+`--max-requests 1` limita el arco; `--max-http-requests 1` incluye todos los intentos de transporte; `--max-retries 0` desactiva reintentos; la ausencia de `--refresh` evita repetir un registro válido. Las rutas crudas, el catálogo y el estado quedan en las ubicaciones locales excluidas de Git. Compruebe el estado `adquirida` en `data/processed/routes/acquisition_state.json`, el `http_requests: 1` y estado HTTP 200 en los metadatos del JSON correspondiente, además de la geometría y los valores normalizados en el catálogo. Un fallo también queda registrado; no vuelva a ejecutar sin inspeccionar primero ese estado.
+
+La reconstrucción con `experiments.build_tsp_matrices` es offline. Tras adquirir solo Madrid→Toledo, el manifiesto mostrará que faltan la mayoría de arcos, y no se producirá una matriz completa utilizable para 47 ciudades; no se rellenan los datos ausentes con cero. Cuando el conjunto esté completo, por ejemplo:
+
+```powershell
+& .\.venv\Scripts\python.exe -m experiments.build_tsp_matrices --mode fastest
+& .\.venv\Scripts\python.exe -m experiments.build_tsp_matrices --mode economic --hour-value 25
+```
+
 El archivo local examinado se preserva como `data/raw/weekly_oil_bulletin_2026-10-08_prices_with_taxes.xlsx`. El nombre que traía el archivo decía `2026-09-21`, pero su hoja sitúa la fecha de referencia en 2026-10-05 y sus metadatos fueron modificados el 2026-10-08; el boletín publicado con esa fecha aparece en el índice oficial de la Comisión. Se registraron la celda `Sheet1!B28`, el valor, la unidad y el SHA-256 en `configs/tsp_economics.yaml` y `data/fuentes.md`. La política general de la Comisión permite reutilizar contenido propio bajo CC BY 4.0 salvo aviso distinto; se versiona el XLSX con atribución y registro de que se extrajo y convirtió un valor. La fecha real de descarga del usuario no viene embebida; la consulta/inspección local fue el 2026-10-12.
 
 El API reporta tiempos de perfil, no mediciones futuras ni tiempos de tráfico para una hora de salida. Puede cambiar el resultado con actualización del proveedor o de OSM. Se registra adquisición y perfil; cuando la API no exponga versión de grafo, se conserva expresamente como no informada y se guardan respuesta y petición bajo la licencia aplicable.

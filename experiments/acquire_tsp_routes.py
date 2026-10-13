@@ -24,6 +24,8 @@ def main() -> int:
                         help="límite explícito de llamadas de esta ejecución")
     parser.add_argument("--max-http-requests", type=int,
                         help="límite total de intentos HTTP, incluidos reintentos; obligatorio con --execute")
+    parser.add_argument("--max-retries", type=int,
+                        help="reintentos máximos por solicitud (por defecto: configuración YAML; 0 los desactiva)")
     parser.add_argument("--daily-quota", type=int,
                         help="cuota diaria Directions configurada para la cuenta (predeterminada: config YAML)")
     parser.add_argument("--execute", action="store_true", help="habilita llamadas de red a ORS")
@@ -56,6 +58,8 @@ def main() -> int:
         parser.error(f"el lote ({len(requests)}) excede --max-requests={args.max_requests}")
     if args.execute and (args.max_http_requests is None or args.max_http_requests < 1):
         parser.error("--execute requiere --max-http-requests positivo, contando cada reintento")
+    if args.max_retries is not None and args.max_retries < 0:
+        parser.error("--max-retries no puede ser negativo")
     if not args.execute:
         print(json.dumps({"execution": "plan_only", "requests": [
             {"request_id": request.request_id, "origin": request.origin.city_id,
@@ -67,7 +71,7 @@ def main() -> int:
         profile=profile,
         endpoint=config.directions_endpoint,
         timeout_seconds=config.timeout_seconds,
-        max_retries=config.max_retries,
+        max_retries=(config.max_retries if args.max_retries is None else args.max_retries),
         max_http_requests=args.max_http_requests,
         min_interval_seconds=(args.minimum_interval if args.minimum_interval is not None
                               else config.minimum_seconds_between_requests),

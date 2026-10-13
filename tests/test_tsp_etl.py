@@ -242,6 +242,51 @@ def test_route_acquisition_requires_http_budget_when_execution_is_enabled():
     assert error.value.code == 2
 
 
+def test_route_acquisition_cli_can_select_one_http_attempt_without_retries(monkeypatch, tmp_path):
+    from experiments import acquire_tsp_routes
+
+    captured = {}
+
+    class FakeProvider:
+        def __init__(self, **kwargs):
+            captured["provider"] = kwargs
+
+    class FakeStore:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    class FakeManager:
+        def __init__(self, provider, store, **kwargs):
+            captured["manager"] = kwargs
+
+        def run(self, requests, **kwargs):
+            captured["requests"] = requests
+            captured["run"] = kwargs
+            return type("Summary", (), {"failed": 0, "__str__": lambda self: "simulated"})()
+
+    monkeypatch.setattr(acquire_tsp_routes, "load_etl_config", lambda path: type(
+        "Config", (), {
+            "profile": "driving-car", "directions_endpoint": "https://fixture.invalid/v2/directions",
+            "timeout_seconds": 1.0, "max_retries": 3,
+            "minimum_seconds_between_requests": 0.0,
+            "standard_plan_daily_directions_limit": 10,
+            "route_catalog": tmp_path / "routes.csv", "raw_responses": tmp_path / "raw",
+        })())
+    monkeypatch.setattr(acquire_tsp_routes, "OpenRouteServiceProvider", FakeProvider)
+    monkeypatch.setattr(acquire_tsp_routes, "RouteStore", FakeStore)
+    monkeypatch.setattr(acquire_tsp_routes, "AcquisitionManager", FakeManager)
+    monkeypatch.setattr("sys.argv", [
+        "acquire_tsp_routes", "--pairs", "madrid:toledo", "--strategy", "fastest",
+        "--max-requests", "1", "--max-http-requests", "1", "--max-retries", "0", "--execute",
+    ])
+
+    assert acquire_tsp_routes.main() == 0
+    assert len(captured["requests"]) == 1
+    assert captured["provider"]["max_http_requests"] == 1
+    assert captured["provider"]["max_retries"] == 0
+    assert captured["run"] == {"max_requests": 1, "refresh": False}
+
+
 class _FakeHttpResponse:
     status = 200
     headers = {}
