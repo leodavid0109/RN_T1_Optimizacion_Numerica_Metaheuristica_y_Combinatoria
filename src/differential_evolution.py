@@ -26,6 +26,7 @@ def run_de(
     population_size: int = 30,
     F: float = 0.5,
     CR: float = 0.9,
+    record_population: bool = False,
 ) -> RunResult:
     """Minimiza `problem.f` con DE/rand/1/bin. Los límites del dominio se imponen recortando."""
     if budget < 1:
@@ -54,6 +55,8 @@ def run_de(
     result.history_f.append(best_f)
     result.history_x.append(best_x.copy())
     result.history_evals.append(problem.equivalent_evals(grad_cost))
+    if record_population:  # solo para animaciones: no cambia la ejecución
+        result.history_pop.append(pop.copy())
 
     # 2. Generaciones hasta agotar el presupuesto.
     # Si n0 < population_size el presupuesto ya se agotó y el ciclo no corre.
@@ -94,6 +97,8 @@ def run_de(
         result.history_f.append(best_f)
         result.history_x.append(best_x.copy())
         result.history_evals.append(problem.equivalent_evals(grad_cost))
+        if record_population:
+            result.history_pop.append(pop.copy())
 
     result.f_evals = problem.f_evals
     result.grad_evals = problem.grad_evals

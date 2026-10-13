@@ -31,6 +31,7 @@ class RunResult:
     history_x: list = field(default_factory=list)   # trayectoria o mejor individuo (para GIF)
     history_evals: list = field(default_factory=list)  # evaluaciones equivalentes acumuladas
     stop_reason: str = ""
+    history_pop: list = field(default_factory=list)  # población por iteración (solo si record_population=True)
 
 
 def check_result(res: RunResult, problem, budget: float, grad_cost: float = 1.0, slack: float = 0.0) -> None:

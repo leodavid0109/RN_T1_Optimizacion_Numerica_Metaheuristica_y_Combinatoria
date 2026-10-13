@@ -1,0 +1,23 @@
+# Animaciones (GIF) de la Parte 1: descenso por gradiente y métodos heurísticos en 2D.
+# Una corrida por (método, función), con la semilla indicada; cada cuadro es una iteración
+# (GD) o una generación / paso del enjambre (DE, PSO).
+funciones: [rosenbrock, rastrigin]
+semilla: 0
+presupuesto: 1500        # evaluaciones equivalentes de la corrida animada (2D)
+grad_cost: 1.0
+max_cuadros: 60          # cuadros máximos por GIF
+duracion_cuadro: 0.15    # segundos por cuadro
+
+metodos:                 # los mismos hiperparámetros de configs/compare.yaml
+  gd:
+    rosenbrock: {lr: 0.0002}
+    rastrigin: {lr: 0.003}
+  pso:
+    rosenbrock: {n_particles: 30, c1: 0.8, c2: 0.4, w: 0.1}
+    rastrigin: {n_particles: 30, c1: 0.8, c2: 0.4, w: 0.1}
+  de:
+    rosenbrock: {population_size: 30, F: 0.5, CR: 0.9}
+    rastrigin: {population_size: 30, F: 0.5, CR: 0.9}
+
+salidas:
+  figuras: figures/anim

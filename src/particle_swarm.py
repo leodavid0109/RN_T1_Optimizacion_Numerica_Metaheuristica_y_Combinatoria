@@ -21,6 +21,7 @@ def run_pso(
     c1: float = 0.8,
     c2: float = 0.4,
     w: float = 0.1,
+    record_population: bool = False,
 ) -> RunResult:
     """Minimiza `problem.f` usando Global-Best PSO.
 
@@ -59,6 +60,8 @@ def run_pso(
     result.history_f.append(gbest_f)
     result.history_x.append(gbest_x.copy())
     result.history_evals.append(problem.equivalent_evals(grad_cost))
+    if record_population:  # solo para animaciones: no cambia la ejecución
+        result.history_pop.append(x.copy())
 
     # Cada paso actualiza todas las partículas; si queda un presupuesto parcial,
     # solo se evalúa ese número de partículas para no excederlo.
@@ -88,6 +91,8 @@ def run_pso(
         result.history_f.append(gbest_f)
         result.history_x.append(gbest_x.copy())
         result.history_evals.append(problem.equivalent_evals(grad_cost))
+        if record_population:
+            result.history_pop.append(x.copy())
 
     result.f_evals = problem.f_evals
     result.grad_evals = problem.grad_evals
