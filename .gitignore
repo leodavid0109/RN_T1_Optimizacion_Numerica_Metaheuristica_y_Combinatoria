@@ -2,6 +2,10 @@ __pycache__/
 *.pyc
 .venv/
 .pytest_cache/
+.pytest-tmp*/
+.pytest-toll*/
+pytest-cache-files-*/
+pytest-run-*/
 .ipynb_checkpoints/
 .DS_Store
 
