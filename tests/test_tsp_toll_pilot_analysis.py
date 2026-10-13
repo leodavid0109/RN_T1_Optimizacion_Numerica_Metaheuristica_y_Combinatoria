@@ -7,6 +7,7 @@ from src.tsp.etl.toll_infrastructure import (
     match_infrastructure_to_route,
 )
 from src.tsp.etl.toll_pilot_analysis import (
+    _render_markdown,
     consolidate_overpass_snapshots,
     summarize_query_state,
 )
@@ -68,6 +69,35 @@ def test_query_state_counts_pending_regions_and_http_failures(tmp_path):
     assert (result["planned"], result["acquired"], result["failed"], result["pending"]) == (5, 1, 1, 3)
     assert result["http_requests_last_execution"] == 2
     assert result["http_504_count"] == 1
+
+
+def test_rendered_report_uses_current_query_counts_and_route_coverage():
+    state = {
+        "planned": 35, "acquired": 2, "failed": 1, "pending": 32,
+        "http_requests_last_execution": 2, "http_504_count": 1, "http_429_count": 0,
+    }
+    summary = {
+        "query_state": state, "raw_response_files": 2, "raw_elements_total": 171,
+        "normalized_observations": 171, "unique_infrastructure": 168,
+        "duplicates_removed": 3, "snapshot_conflicts": 0, "types": {},
+        "operators": {}, "roads": {}, "route_alternatives": 12,
+        "radius_m": 35, "route_matches": 0, "route_matches_by_level": {},
+        "ors_routes_with_extra_info": 0,
+    }
+    routes = [{
+        "route_id": "fast-bz",
+        "origin_id": "bizkaia", "destination_id": "zaragoza",
+        "origin_name": "Bilbao", "destination_name": "Zaragoza",
+        "strategy": "fastest", "acquired_regions_for_route": 2,
+        "planned_regions_for_route": 8, "ap68_reference_match": True,
+        "infrastructure_id": "osm:relation/90", "road_reference": "AP-68", "minimum_distance_m": 0,
+        "aligned_route_length_m": 290_900, "evidence_level": "coincidencia_vial_probable",
+    }]
+    report = _render_markdown(summary, routes)
+    assert "2 regiones completadas, 1 fallidas y 32 pendientes" in report
+    assert "Se encontraron 2 respuestas crudas locales" in report
+    assert "Bilbao → Zaragoza: 2/8 celdas" in report
+    assert "Quedan 33 regiones no completadas (1 fallida(s) y 32 pendiente(s))" in report
 
 
 def _feature(osm_id, line):

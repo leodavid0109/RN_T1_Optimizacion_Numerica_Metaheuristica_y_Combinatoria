@@ -331,6 +331,21 @@ def _write_csv(path: Path, rows: list[dict]) -> None:
 
 def _render_markdown(summary: dict, route_rows: list[dict]) -> str:
     state = summary["query_state"]
+    remaining_regions = state["failed"] + state["pending"]
+    ap68_coverage: dict[str, tuple[int, int]] = {}
+    for row in route_rows:
+        if ({row["origin_id"], row["destination_id"]} == {"bizkaia", "zaragoza"}
+                and row["strategy"] == "fastest"):
+            pair = f"{row['origin_name']} → {row['destination_name']}"
+            ap68_coverage[pair] = (int(row["acquired_regions_for_route"]),
+                                   int(row["planned_regions_for_route"]))
+    if ap68_coverage:
+        coverage_text = "; ".join(
+            f"{pair}: {acquired}/{planned} celdas"
+            for pair, (acquired, planned) in sorted(ap68_coverage.items())
+        )
+    else:
+        coverage_text = "sin cobertura AP-68 identificada en las rutas rápidas"
     lines = [
         "# Análisis offline del piloto geográfico de peajes",
         "",
@@ -345,7 +360,7 @@ def _render_markdown(summary: dict, route_rows: list[dict]) -> str:
         f"- Solicitudes HTTP registradas en la última ejecución: {state['http_requests_last_execution']}",
         f"- Fallos HTTP 504: {state['http_504_count']}; HTTP 429: {state['http_429_count']}",
         "",
-        "El estado local no acredita que las 35 consultas terminaran: registra una región adquirida, una con error HTTP 504 y 33 pendientes. Solo se encontró una respuesta cruda de Overpass.",
+        f"El estado local registra {state['acquired']} regiones completadas, {state['failed']} fallidas y {state['pending']} pendientes; no acredita que terminara el plan de {state['planned']} consultas. Se encontraron {summary['raw_response_files']} respuestas crudas locales.",
         "",
         "## Inventario consolidado",
         "",
@@ -405,13 +420,13 @@ def _render_markdown(summary: dict, route_rows: list[dict]) -> str:
         "",
         "Las geometrías `fastest` se alinean aproximadamente 290,9 km con la relación AP-68 en ambos sentidos. Las candidatas `avoid_tolls` también muestran alineamientos locales de unos 332 m y 259 m, respectivamente. Es una señal consistente con uso extenso de AP-68 en `fastest` y una intersección breve en `avoid_tolls`; esa intersección puede corresponder a un enlace o tramo de incorporación y necesita revisión cartográfica. El valor es longitud geométrica aproximada, no longitud tarifada.",
         "El objeto relation AP-68 y sus vías miembro pueden describir partes coincidentes del mismo corredor; son IDs OSM diferentes, así que se conservan en el inventario, pero no deben sumarse como cobros independientes.",
-        "El resultado no demuestra que una ruta use o evite toda la AP-68: la consulta adquirida cubre solo 1 de 8–9 celdas planificadas por arco de ese corredor y no se identificaron accesos, salidas, sentido tarifario ni recorrido completo sujeto a cobro.",
+        f"El resultado no demuestra que una ruta use o evite toda la AP-68: cobertura observada de las rutas rápidas: {coverage_text}. No se identificaron accesos, salidas, sentido tarifario ni recorrido completo sujeto a cobro.",
         "",
         "## Conclusión sobre utilidad",
         "",
         "Overpass sirve para formar un inventario geográfico reutilizable y generar candidatos de asociación. No entrega tarifas ni garantiza que las etiquetas estén completas o vigentes. El cruce espacial puede reducir la revisión manual, pero calcular el peaje requiere resolver segmentos y accesos/salidas contra tarifarios oficiales y demostrar que la ruta quedó cubierta de extremo a extremo.",
         "",
-        "Para 47 ciudades, no conviene consultar Overpass por cada arco dirigido. Conviene adquirir y versionar una sola vez el inventario de infraestructura por regiones/corredores, reutilizarlo para ambos sentidos y todas las alternativas, y conservar el estado desconocido cuando falten cobertura o evidencia. La adquisición actual falló antes de completar el piloto; primero hay que reanudar las 34 regiones restantes con control de carga, revisar cobertura y deduplicar las respuestas.",
+        f"Para 47 ciudades, no conviene consultar Overpass por cada arco dirigido. Conviene adquirir y versionar una sola vez el inventario de infraestructura por regiones/corredores, reutilizarlo para ambos sentidos y todas las alternativas, y conservar el estado desconocido cuando falten cobertura o evidencia. Quedan {remaining_regions} regiones no completadas ({state['failed']} fallida(s) y {state['pending']} pendiente(s)); se deben reanudar con lotes pequeños, revisar cobertura y deduplicar las respuestas.",
         "",
         "## Archivos regenerables",
         "",
