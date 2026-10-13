@@ -1,0 +1,11 @@
+# Parámetros demostrativos; requieren experimentación antes de fijarlos para el estudio.
+semilla: 42
+presupuesto: 73
+valor_hora_eur_h: 5.0
+aco:
+  n_ants: 10
+  alpha: 1.0
+  beta: 2.0
+  rho: 0.5
+  q: 1.0
+  tau0: 1.0
