@@ -350,3 +350,38 @@ corredor: se conservan por ser IDs OSM diferentes, pero no se suman como
 cobros distintos. Las respuestas ORS no contenían `extra_info` (0 de 12), así
 que el cruce actual no dispone de identificadores de vía retornados por el
 motor.
+
+## 10. Auditoría de cobertura por arco
+
+`src/tsp/etl/toll_coverage.py` resume las etapas de evidencia por conexión
+dirigida: distancia/tiempo, geometría adquirida, candidatos de infraestructura,
+entrada/salida revisadas, tarifa verificada y completitud económica de los
+Modelos A y B. La salida separa expresamente candidatos geográficos de costos
+verificados. Para el Modelo B, `model_b_known_options_evaluable` solo indica que
+todas las alternativas actualmente registradas para ese arco tienen tarifa
+verificada; no afirma que esas alternativas sean exhaustivas.
+
+El informe puede regenerarse offline desde el dataset versionado y los archivos
+locales disponibles:
+
+```powershell
+.\.venv\Scripts\python.exe -m experiments.report_tsp_toll_coverage
+```
+
+Genera `data/processed/tolls/toll_coverage_national.json` y
+`toll_coverage_arcs.csv`. Lee el catálogo local de rutas y, si existe, el CSV de
+coincidencias Overpass. No consulta APIs. El directorio `data/processed/tolls/`
+permanece ignorado por Git, porque sus salidas incluyen datos derivados de OSM.
+Si esos archivos locales faltan en otra máquina, el informe conserva en cero
+solo los conteos observacionales de geometrías/candidatos; los estados
+tarifarios siguen desconocidos y no se infiere una cobertura económica.
+
+En la auditoría del 2026-10-13 se confirmó que el estado persistido cubre 2 de
+35 celdas, con 1 fallo 504 y 32 pendientes; el inventario disponible consolida
+168 objetos únicos de 171 observaciones (13 `toll_booth`, 155 vías `toll_road`)
+y no registra `toll_gantry`. Las 12 alternativas del piloto tienen geometría,
+pero ninguna tiene `extra_info` de ORS ni tarifa/entrada/salida verificada. El
+dataset nacional sí cubre distancia, duración y combustible para los 2.162
+arcos. La cobertura de costo económico completo de A y B permanece en cero;
+la tarifa nominal AP-68 de 39,90 EUR no se asigna a ninguna geometría hasta
+confirmar sus estaciones, sentido, clase, condiciones y cobertura tarifaria.
