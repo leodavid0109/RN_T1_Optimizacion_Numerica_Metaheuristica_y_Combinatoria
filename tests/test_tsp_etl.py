@@ -2,6 +2,7 @@
 
 import csv
 from dataclasses import replace
+from datetime import datetime, timezone
 from hashlib import sha256
 import json
 from pathlib import Path
@@ -226,6 +227,7 @@ def test_ors_http_budget_counts_retries_and_prevents_extra_transport_calls():
         provider._post("https://fixture.invalid", {})
     assert len(calls) == 2
     assert provider.http_requests_made == 2
+    assert provider.http_status_codes == [429, 429]
 
 
 def test_route_acquisition_requires_http_budget_when_execution_is_enabled():
@@ -279,6 +281,27 @@ def test_provider_uses_mock_transport_and_never_stores_api_key(tmp_path):
     assert store.request_succeeded("ors:" + request.request_id)
     loaded = store.load_alternatives()
     assert loaded == routes
+
+
+def test_acquisition_persists_http_attempts_status_and_timestamp_without_key(tmp_path):
+    provider = OpenRouteServiceProvider(
+        "synthetic-private-key", opener=lambda *a, **k: _FakeHttpResponse(_ors_response()),
+        min_interval_seconds=0, max_http_requests=1, today=lambda: "2026-10-12",
+    )
+    request = AcquisitionRequest(_city("x", 40, -3), _city("y", 41, -4))
+    store = RouteStore(tmp_path / "processed", raw_dir=tmp_path / "raw")
+    summary = AcquisitionManager(provider, store).run([request], max_requests=1)
+
+    assert (summary.acquired, summary.http_requests, summary.http_status_codes) == (1, 1, (200,))
+    state = json.loads(store.state_path.read_text(encoding="utf-8"))
+    request_state = next(iter(state["requests"].values()))
+    raw_record = json.loads(Path(request_state["raw_file"]).read_text(encoding="utf-8"))
+    acquisition = raw_record["request"]["acquisition"]
+    assert acquisition["http_requests"] == 1
+    assert acquisition["http_status_codes"] == [200]
+    acquired_at = datetime.fromisoformat(acquisition["acquired_at"])
+    assert acquired_at.tzinfo == timezone.utc
+    assert "synthetic-private-key" not in json.dumps(raw_record)
 
 
 def test_ors_toll_avoidance_uses_documented_array_shape():

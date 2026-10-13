@@ -93,9 +93,16 @@ class RouteStore:
         }
         self._write_state(state)
 
-    def save_failure(self, request_id: str, error_type: str) -> None:
+    def save_failure(
+        self, request_id: str, error_type: str, *, http_requests: int = 0,
+        http_status_codes: Iterable[int] = (),
+    ) -> None:
         state = self._state()
-        state["requests"][request_id] = {"status": "error", "error_type": error_type}
+        state["requests"][request_id] = {
+            "status": "error", "error_type": error_type,
+            "http_requests": http_requests, "http_status_codes": list(http_status_codes),
+            "failed_at": datetime.now(timezone.utc).isoformat(),
+        }
         self._write_state(state)
 
     def save_matrix_snapshot(

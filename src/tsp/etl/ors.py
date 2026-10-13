@@ -48,6 +48,7 @@ class OpenRouteServiceProvider:
         self.max_retries = max_retries
         self.max_http_requests = max_http_requests
         self.http_requests_made = 0
+        self.http_status_codes: list[int] = []
         self.min_interval_seconds = min_interval_seconds
         self.opener, self.sleep, self.clock = opener, sleep, clock
         self.today = today or (lambda: datetime.now(timezone.utc).date().isoformat())
@@ -152,6 +153,7 @@ class OpenRouteServiceProvider:
                 self.sleep(min(2**attempt, 30))
                 continue
 
+            self.http_status_codes.append(status)
             if status == 401 or status == 403:
                 raise ProviderError(f"el proveedor rechazó autenticación/permisos (HTTP {status})")
             if status == 429 or status >= 500:

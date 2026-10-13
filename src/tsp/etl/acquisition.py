@@ -76,6 +76,7 @@ class AcquisitionSummary:
     skipped_existing: int
     failed: int
     http_requests: int = 0
+    http_status_codes: tuple[int, ...] = ()
 
 
 class AcquisitionManager:
@@ -98,6 +99,7 @@ class AcquisitionManager:
         if max_requests < 0:
             raise ValueError("max_requests no puede ser negativo")
         attempts_before = int(getattr(self.provider, "http_requests_made", 0))
+        status_codes_before = len(getattr(self.provider, "http_status_codes", ()))
         original_count = len(requests)
         namespace = getattr(self.provider, "cache_namespace",
                             f"{self.provider.provider_name}:{getattr(self.provider, 'profile', '')}")
@@ -127,13 +129,32 @@ class AcquisitionManager:
             if self.store.request_succeeded(request_id) and not refresh:
                 skipped += 1
                 continue
+            request_attempts_before = int(getattr(self.provider, "http_requests_made", 0))
+            request_status_before = len(getattr(self.provider, "http_status_codes", ()))
             try:
                 safe_request, response, alternatives = self.provider.fetch(request)
+                safe_request = dict(safe_request)
+                safe_request["acquisition"] = {
+                    "acquired_at": datetime.now(timezone.utc).isoformat(),
+                    "http_requests": int(getattr(self.provider, "http_requests_made", 0))
+                    - request_attempts_before,
+                    "http_status_codes": list(
+                        getattr(self.provider, "http_status_codes", ())[request_status_before:]
+                    ),
+                }
                 self.store.save_success(request_id, safe_request, response, alternatives)
                 acquired += 1
             except Exception as exc:
                 # No registrar cuerpo de excepción ni cabeceras: podrían incluir datos sensibles.
-                self.store.save_failure(request_id, type(exc).__name__)
+                self.store.save_failure(
+                    request_id, type(exc).__name__,
+                    http_requests=(int(getattr(self.provider, "http_requests_made", 0))
+                                   - request_attempts_before),
+                    http_status_codes=tuple(
+                        getattr(self.provider, "http_status_codes", ())[request_status_before:]
+                    ),
+                )
                 failed += 1
         return AcquisitionSummary(original_count, acquired, skipped, failed,
-                                  int(getattr(self.provider, "http_requests_made", 0)) - attempts_before)
+                                  int(getattr(self.provider, "http_requests_made", 0)) - attempts_before,
+                                  tuple(getattr(self.provider, "http_status_codes", ())[status_codes_before:]))
