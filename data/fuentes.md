@@ -104,3 +104,41 @@ geográfico está en `overpass_inventory.geojson`. El informe consolidado regist
 168 IDs únicos y 189 relaciones ruta–objeto para las 12 geometrías ORS. Permanecen excluidos de Git
 por ser derivados de OSM/ODbL y estar pendiente la decisión de redistribución.
 La metodología y sus limitaciones están en `docs/tsp_peajes.md`.
+
+### Snapshot nacional ORS Matrix y revisión para redistribución (2026-10-12)
+
+El snapshot local ORS Matrix conserva la respuesta con SHA-256
+`8660e42cb511a530e5dfeb2dea003af50b2013dc03cebedd74276d2eebab1d9e`; el
+contenedor JSON local tiene hash distinto y también se registra en los metadatos
+del paquete preparado. La respuesta corresponde a `driving-car`, métricas
+distancia/duración, unidades originales m/s y orden canónico de 47 ciudades.
+Las matrices derivadas mantienen 2.162 arcos dirigidos; no contienen peajes.
+
+La página de términos ORS consultada el 2026-10-12 redirigió a términos de
+cuenta autenticados. La respuesta pública de un representante de HeiGIT del
+12-10-2026 señala CC BY-SA 4.0 para resultados, pero remite a los términos y
+expresa que HeiGIT no está cualificado para interpretar cuestiones legales; otra
+referencia pública a los términos menciona CC BY 4.0. OpenStreetMap publica sus
+datos bajo ODbL y exige atribución; la guía OSMF para bases de datos pide incluir
+atribución y la licencia/enlace ODbL en la base o base derivada. La interacción
+entre la licencia ORS aplicable a la cuenta y ODbL para esta matriz derivada no
+se considera resuelta. El campo `results_license` del JSON local fue añadido
+por nuestro `RouteStore`, no es un campo original de ORS.
+
+Fuentes consultadas el 2026-10-12:
+
+- Términos ORS: https://openrouteservice.org/terms-of-service/ (redirige a
+  términos autenticados de cuenta).
+- Respuesta ORS/HeiGIT sobre CC BY-SA 4.0:
+  https://ask.openrouteservice.org/t/free-plan-in-an-app-with-a-paid-tier-license-cc-by-sa-4-0-personal-data-and-attribution-questions/8079
+- Respuesta ORS/HeiGIT sobre persistencia de resultados Matrix:
+  https://ask.openrouteservice.org/t/persistent-storage-and-reuse-of-matrix-api-duration-results/8010
+- Guía de atribución OSMF: https://osmfoundation.org/wiki/Attribution_Guidelines
+- Licencia OSM: https://www.openstreetmap.org/copyright
+
+El exportador determinista puede regenerar localmente CSV de ciudades, distancia,
+duración y tres escenarios de combustible, junto con metadatos y hashes. Estos
+archivos siguen sin licencia de redistribución concedida y no deben subirse a
+GitHub hasta obtener los términos exactos aplicables a la clave utilizada y
+resolver el tratamiento ODbL. La fecha efectiva de descarga del boletín de
+combustible continúa sin registro; se conserva como desconocida.
