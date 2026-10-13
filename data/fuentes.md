@@ -66,3 +66,29 @@ derivada de las 12 geometrías piloto ORS. La planificación no descargó objeto
 de Overpass ni consultó ORS. El manifiesto y las respuestas de proveedor se
 guardan bajo `data/processed/tolls/` y `data/raw/tolls/`, carpetas ignoradas
 por Git mientras se revisan los términos específicos de redistribución.
+
+### Resultado real del piloto geográfico Overpass (2026-10-12, hora local)
+
+Se revisaron sin nuevas consultas los archivos locales de `data/raw/tolls/` y
+`data/processed/tolls/`. El manifiesto contenía 35 cajas; el estado registró
+una región adquirida, una fallida (HTTP 504), 33 pendientes y dos solicitudes
+HTTP en la última ejecución. Por ello, la ejecución disponible no acredita que
+se completara el lote de 35 consultas. La única respuesta conservada informa
+`osm3s.timestamp_osm_base=2026-10-13T01:51:44Z`; sus metadatos consignan la
+adquisición efectiva `2026-10-13T01:53:08.525656Z` (2026-10-12, hora de Bogotá).
+Incluye 46 objetos OSM normalizados: 45 vías y una relación de carretera, todos
+clasificados por la etiqueta `toll=yes`; cuatro tienen `ref=AP-68`. No se
+observaron estaciones `barrier=toll_booth` ni pórticos `highway=toll_gantry`
+en esa respuesta. La relación AP-68 trae geometría de miembros, conservada
+como líneas separadas para evitar segmentos ficticios.
+
+El cruce offline con las 12 geometrías ORS encontró coincidencias geométricas
+probables entre las rutas rápidas Bilbao–Zaragoza y Zaragoza–Bilbao y la
+relación AP-68; las dos candidatas `avoid_tolls` también muestran un tramo
+breve alineado/cercano en el área descargada. El dato no confirma por sí solo
+tránsito tarifado, sentido, estaciones de acceso/salida ni coste. Los informes
+regenerables están en `data/processed/tolls/overpass_inventory.csv`,
+`overpass_route_matches.csv` y `overpass_pilot_analysis.md`; el catálogo
+geográfico está en `overpass_inventory.geojson`. Permanecen excluidos de Git
+por ser derivados de OSM/ODbL y estar pendiente la decisión de redistribución.
+La metodología y sus limitaciones están en `docs/tsp_peajes.md`.

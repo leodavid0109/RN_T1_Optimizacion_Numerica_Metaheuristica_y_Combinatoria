@@ -1,8 +1,9 @@
 # Inventario y tarifas de peajes del TSP
 
-**Estado al 2026-10-12:** código y pruebas con fixtures sintéticos; no se ha
-consultado Overpass durante esta fase, no se han descargado datos OSM y no se
-han asignado nuevas tarifas a las 12 rutas ORS.
+**Estado al 2026-10-12:** se ejecutó localmente una parte del piloto Overpass:
+una de 35 regiones quedó adquirida, una falló con HTTP 504 y 33 permanecen
+pendientes. Se generaron informes offline del snapshot disponible. No se
+asignaron tarifas a las 12 rutas ORS.
 
 ## 1. Fuentes y qué prueban
 
@@ -67,11 +68,13 @@ para subirlos al repositorio.
 catálogo ETL con el inventario local; falla si falta alguna geometría.
 `match_infrastructure_to_route` mide la distancia mínima de las geometrías y
 devuelve una fracción aproximada del avance de ruta, un umbral explícito y las
-etiquetas que dan contexto de sentido. El nivel de resultado es siempre
-`candidato_proximidad`. La proyección local equirectangular sirve para filtrar
-candidatos en radios cortos; no se considera prueba topológica. Una estación al
-lado de la calzada contraria, una vía paralela, un ramal o una salida cercana
-pueden quedar a poca distancia y no haber sido recorridos.
+etiquetas que dan contexto de sentido. Distingue `candidato_proximidad` de
+`coincidencia_vial_probable`, cuando un elemento lineal `toll=yes` se alinea
+geométricamente cerca y de forma aproximadamente paralela durante al menos
+250 m. La proyección local equirectangular es un filtro de radio corto, no una
+prueba topológica. Una estación al lado de la calzada contraria, una vía
+paralela, un ramal o una salida cercana pueden quedar a poca distancia y no
+haber sido recorridos.
 
 La automatización puede cruzar geometría ORS con `osmid`/`tollways`, vías y
 estaciones OSM, ordenar candidatos por avance, cotejar `ref` y etiquetas de
@@ -117,9 +120,15 @@ AP-68 de recorridos directos/inversos y categorías. Esto habilita una tabla
 tarifaria estructurada por transcripción, no una asignación automática por
 nombre de vía.
 
-La ruta piloto Bilbao ↔ Zaragoza contiene segmentos nombrados AP-68 en ORS,
-pero no hemos reconsultado ORS en esta fase ni demostrado exactamente sus
-entradas/salidas. Además, desde 2026-11-11 el tramo alavés entra en un nuevo
+El snapshot Overpass adquirido incluye una relación OSM `ref=AP-68` y vías
+miembro. El cruce geométrico da aproximadamente 290,9 km de alineamiento con
+cada ruta `fastest` de Bilbao ↔ Zaragoza y unos 332 m / 259 m con las
+candidatas `avoid_tolls`. Es evidencia probable de un uso extenso en las rutas
+rápidas y una coincidencia local breve en las candidatas; no confirma estaciones,
+calzada, sentido ni longitud tarifada. Solo se adquirió una de las 8–9 celdas
+planificadas por arco y no se puede probar que las candidatas eviten toda la
+AP-68. Las respuestas ORS no contenían `extra_info` (0/12). Además, desde
+2026-11-11 el tramo alavés entra en un nuevo
 esquema de gestión. La propuesta comunicada por Álava es de precio por km y
 requiere el decreto/acto definitivo, mapa de pórticos y reglas operativas para
 transformarse en costo aplicable. El importe 39,90 EUR se puede citar como
@@ -199,16 +208,39 @@ espera de 30 segundos antes de admitir otra ejecución. El flujo es secuencial y
 no requiere claves. Esos directorios permanecen excluidos de Git.
 
 La consulta incluye instalaciones `barrier=toll_booth`, `highway=toll_gantry`
-y elementos con `toll=yes`, con etiquetas y geometría. Las cajas solapadas
-comparten sus bordes; el parser deduplica dentro de cada respuesta, pero todavía
-no existe un consolidado global por ID OSM entre respuestas. Antes de cruzar
-todo el piloto se debe unir por `osm:{type}/{id}` para evitar duplicados de
-borde. Celdas ausentes en OSM no prueban cobertura completa
-ni ausencia de peaje. La cercanía a una ruta se mantiene como
-`candidato_proximidad`; el analizador actual **no asigna por sí solo** estados
-distintos de paso probable, tránsito confirmado o ambigüedad topológica. Para
-eso hacen falta IDs de vías, conexiones y calzada/sentido, más una revisión
-adicional. Ninguna proximidad genera tarifas.
+y elementos con `toll=yes`, con etiquetas y geometría. El consolidador offline
+actual une observaciones por `(tipo OSM, ID OSM)`, conserva los archivos fuente,
+fechas de adquisición y versión `osm_base`, marca snapshots discordantes y
+mantiene los miembros de relaciones como `MultiLineString` para no conectar
+artificialmente geometrías separadas. El analizador cruza las geometrías
+locales y diferencia cercanía de coincidencia geométrica probable. Incluso un
+alineamiento no confirma calzada, acceso, sentido ni cobro. Ninguna proximidad
+genera tarifas.
+
+Para regenerar el inventario y los informes sin conexión:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.tsp.etl.toll_pilot_analysis
+```
+
+El comando genera `overpass_inventory.geojson`, `overpass_inventory.csv`,
+`overpass_route_matches.csv` y `overpass_pilot_analysis.md` bajo
+`data/processed/tolls/`. Los resultados contienen datos derivados de OSM y el
+directorio sigue excluido de Git mientras no se cierre la revisión de
+redistribución.
+
+En la ejecución local observada el manifiesto tenía 35 cajas, pero el estado
+persistido registró una adquisición, un fallo HTTP 504 y 33 pendientes (dos
+solicitudes HTTP en la última ejecución). Por tanto, no se consideran
+completadas las 35 consultas. La única respuesta contenía 46 objetos
+normalizados: 45 vías y una relación AP-68; no devolvió estaciones
+`toll_booth` ni pórticos `toll_gantry`. El cruce produjo coincidencias probables
+entre las geometrías rápidas Bilbao ↔ Zaragoza y la relación AP-68, además de
+un alineamiento breve de las candidatas `avoid_tolls` en la zona adquirida.
+Esto es una señal para revisión, no una conclusión tarifaria: faltan 33 cajas,
+no se resolvieron accesos/salidas ni se verificó la cobertura completa de los
+tramos sujetos a tarifa. El informe offline detalla cada objeto, distancia,
+fracción aproximada de ruta y cobertura de celdas.
 
 Las 12 respuestas ORS locales registran motor **9.10.0**, perfil
 `driving-car` y formato GeoJSON (`/geojson`). Sus `Feature.properties` contienen
@@ -233,3 +265,13 @@ inventario local para todos los cruces. OSM es una base colaborativa: deben
 registrarse `osm_base`, fecha efectiva, instancia, consultas, IDs y atribución;
 faltantes cartográficos requieren fuentes oficiales y revisión, y los datos
 OSM redistribuidos deben cumplir ODbL.
+En la única celda adquirida, la relación AP-68 de OSM se alinea aproximadamente
+290,9 km con cada geometría ORS `fastest` Bilbao ↔ Zaragoza. Las candidatas
+`avoid_tolls` también se alinean localmente unos 332 m y 259 m con esa relación.
+Esto sugiere uso extenso de AP-68 en las rápidas y un cruce/acceso breve en las
+candidatas, que debe revisarse cartográficamente. No es una medición de tramo
+tarifado. La relación y algunas vías miembro representan partes del mismo
+corredor: se conservan por ser IDs OSM diferentes, pero no se suman como
+cobros distintos. Las respuestas ORS no contenían `extra_info` (0 de 12), así
+que el cruce actual no dispone de identificadores de vía retornados por el
+motor.
