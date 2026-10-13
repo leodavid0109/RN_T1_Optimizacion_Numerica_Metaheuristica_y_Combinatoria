@@ -403,9 +403,10 @@ el pago en ramales de entrada/salida o en tronco y medios efectivo, tarjeta y
 VIA-T. La resolución SEITT de 2024 determina el marco de actualización anual
 máxima para 2026 en su red; la modificación BOE de diciembre de 2025 mantiene
 AP-7 Cartagena–Vera como corredor SEITT y dispone tarifa cero para la
-Circunvalación de Alicante. La adenda publicada en febrero de 2026 no permite
-inferir por sí sola en este catálogo el día efectivo exacto de esa gratuidad;
-se deja la fecha pendiente y no se convierte una ruta en gratuita por cercanía.
+Circunvalación de Alicante. El acuerdo entró en vigor con su publicación el
+2025-12-18, así que esa sección tiene tarifa publicada de cero en el escenario
+2026. La ruta completa solo puede marcarse gratuita si se demuestra que no
+recorre otros tramos tarifados.
 
 Fuentes consultadas el 2026-10-13:
 

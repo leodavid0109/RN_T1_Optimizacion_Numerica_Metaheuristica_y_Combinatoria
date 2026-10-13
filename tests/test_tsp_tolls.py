@@ -249,7 +249,8 @@ def test_official_2026_toll_road_catalog_is_explicitly_partial():
     assert len(by_id) == len(catalog)
     assert "AP-9-GALICIA" in by_id and "AP-68-BILBAO-ZARAGOZA" in by_id
     assert by_id["AP-68-BILBAO-ZARAGOZA"].valid_through == "2026-11-10"
-    assert by_id["AP-7-ALICANTE-CIRCUNVALACION"].source_status == "official_zero_tariff_effective_date_pending"
+    assert by_id["AP-7-ALICANTE-CIRCUNVALACION"].source_status == "official_zero_tariff"
+    assert by_id["AP-7-ALICANTE-CIRCUNVALACION"].valid_from == "2025-12-18"
     assert by_id["AP-9-GALICIA"].operator == "unverified"
 
 

@@ -197,6 +197,9 @@ Fuentes oficiales revisadas el 2026-10-13:
   https://www.boe.es/eli/es/res/2025/12/10/%282%29/dof/spa/pdf
 - Adenda SEITT sobre Circunvalación de Alicante, BOE-A-2026-2970:
   https://www.boe.es/boe/dias/2026/02/09/pdfs/BOE-A-2026-2970.pdf
+- Modificación SEITT que establece tarifa de 0 EUR para Circunvalación de Alicante,
+  vigente desde su publicación el 2025-12-18 (BOE-A-2025-25961):
+  https://www.boe.es/eli/es/res/2025/12/10/%282%29/dof/spa/pdf
 - Real Decreto 730/2026, medidas AP-68 y fin de concesión el 2026-11-10:
   https://www.boe.es/diario_boe/txt.php?id=BOE-A-2026-19039
 - Tarifas oficiales catalanas 2026 para C-16/C-32 (incluye franjas, categorías y condiciones de descuento):
