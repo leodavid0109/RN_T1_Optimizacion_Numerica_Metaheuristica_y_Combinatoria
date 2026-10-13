@@ -1,7 +1,7 @@
 """Exportación determinista y carga offline del dataset nacional de matrices.
 
-Las matrices derivadas de ORS se pueden preparar localmente. La publicación
-requiere resolver por separado los términos de ORS y las obligaciones ODbL.
+El paquete registra por separado la licencia CC BY-SA de resultados ORS, la
+atribución/licencia de origen OSM y la procedencia CC BY de coordenadas IGN.
 """
 
 from __future__ import annotations
@@ -12,6 +12,8 @@ import json
 import os
 from pathlib import Path
 import tempfile
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from typing import Any
 
 import numpy as np
@@ -85,7 +87,7 @@ def export_spain_dataset(
     for scenario, matrix in fuels.items():
         suffix = "reference" if scenario == "reference" else scenario
         _write_matrix(out / f"fuel_{suffix}_eur.csv", ids, matrix)
-    _write_text(out / "README.md", _readme())
+    _write_text(out / "README.md", _readme(payload.get("acquired_at")))
     _write_text(out / "LICENSE-DATA.md", _license_notice())
 
     output_hashes = {name: _file_sha256(out / name) for name in DATASET_FILES}
@@ -103,8 +105,11 @@ def export_spain_dataset(
             "endpoint": request.get("url"),
             "preference": request.get("routing_preference", "provider_default"),
             "acquired_at": payload.get("acquired_at"),
+            "acquired_at_bogota": _bogota_timestamp(payload.get("acquired_at")),
             "provider_timestamp": response.get("metadata", {}).get("timestamp"),
             "map_graph_version": None,
+            "source_units": {"distance": "m", "duration": "s"},
+            "normalization": {"distance": "m / 1000 = km", "duration": "s / 3600 = h"},
         },
         "provenance": {
             "raw_snapshot_file": _provenance_path(raw_path),
@@ -130,8 +135,16 @@ def export_spain_dataset(
             "openstreetmap_attribution": "Data © OpenStreetMap contributors; ODbL",
         },
         "redistribution": {
-            "status": "pending_license_review",
-            "reason": "Public ORS terms page redirects to account-authenticated terms; public HeiGIT forum answers conflict on CC BY 4.0 vs CC BY-SA 4.0. ODbL treatment of this derived matrix also needs confirmation.",
+            "status": "prepared_for_publication_with_component_licenses",
+            "terms_source": "https://account.heigit.org/info/tos",
+            "terms_section": "Attribution and License — openrouteservice",
+            "terms_checked_on": "2026-10-12",
+            "terms_version": "No version/date displayed; account terms checked on 2026-10-12",
+            "ors_results_license": "CC BY-SA 4.0",
+            "ors_attribution": "© openrouteservice by HeiGIT | Data from OpenStreetMap",
+            "city_catalog_license": "CC BY 4.0 (IGN source as recorded per city)",
+            "osm_attribution_and_license_notice": "OpenStreetMap contributors; ODbL 1.0 source notice; no OSM road-network extract is included",
+            "odbl_scope": "Attribution/link retained for routing output; ODbL share-alike applies if a distributed database is a Derivative Database. Reassess if package scope changes.",
         },
         "tolls_included": False,
         "complete_economic_cost_matrix_exists": False,
@@ -280,19 +293,32 @@ def _provenance_path(path: Path) -> str:
         return path.name
 
 
+def _bogota_timestamp(timestamp: str | None) -> str | None:
+    if not timestamp:
+        return None
+    try:
+        parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        return parsed.astimezone(ZoneInfo("America/Bogota")).isoformat()
+    except (ValueError, TypeError):
+        return None
+
+
 def _write_text(path: Path, value: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(value, encoding="utf-8", newline="\n")
 
 
-def _readme() -> str:
-    return """# Instancia vial nacional TSP — España peninsular (2026)
+def _readme(acquired_at: str | None) -> str:
+    local_acquired_at = _bogota_timestamp(acquired_at) or "fecha no informada"
+    return f"""# Instancia vial nacional TSP — España peninsular (2026)
 
-Preparación local a partir de un snapshot ORS Matrix. Incluye distancias dirigidas, duraciones y tres escenarios de combustible. No incluye tarifas de peaje ni matriz de costo económico total.
+Datos adquiridos mediante openrouteservice Matrix (`driving-car`) el {local_acquired_at} (hora Bogotá); el timestamp UTC y el timestamp del proveedor constan en `metadata.json`. Se solicitaron distancia y duración en unidades originales m/s, con 47 orígenes y 47 destinos en orden canónico. Matrix utiliza la preferencia predeterminada de su endpoint; no se etiqueta como la estrategia `fastest` de Directions. ORS no informó la versión de su grafo.
 
-## Estado de distribución
+Incluye distancias dirigidas, duraciones y tres escenarios de combustible. Las distancias se convierten m/1000 a km; las duraciones s/3600 a horas. No incluye tarifas de peaje ni matriz de costo económico total.
 
-Este paquete es una vista local de preparación. No redistribuir hasta resolver la revisión de términos ORS (CC BY 4.0 frente a CC BY-SA 4.0) y el alcance ODbL. Consultar `LICENSE-DATA.md`.
+## Licencias de datos
+
+Los resultados Matrix de openrouteservice y las matrices de combustible derivadas se distribuyen bajo CC BY-SA 4.0 conforme a los términos HeiGIT de la cuenta. Atribución: **© openrouteservice by HeiGIT | Data from OpenStreetMap**. El catálogo de ciudades conserva CC BY 4.0 del IGN según su procedencia. También incluimos el aviso ODbL para OpenStreetMap: ODbL y CC BY-SA no son intercambiables. Véase `LICENSE-DATA.md`.
 
 ## Archivos y unidades
 
@@ -302,6 +328,10 @@ Este paquete es una vista local de preparación. No redistribuir hasta resolver 
 
 Desde la raíz del repositorio: `python -c "from src.tsp.etl.dataset_export import load_published_dataset; d=load_published_dataset('data/datasets/spain_tsp_2026'); print(d['city_order'][:3], d['distance_km'].shape)"`. La carga valida hashes y orden. No construye costos totales porque los peajes siguen sin estar completos.
 
+## Combustible y peajes
+
+Precio: Eurosuper 95, 1.849098398 EUR/L, Weekly Oil Bulletin de la Comisión Europea publicado el 2026-10-08 y consultado el 2026-10-12. BMW 120 F70, 5.4 L/100 km de referencia, con escenarios 5.3/5.5. Fórmula: `distance_km / 100 × consumption_l_100km × price_eur_l`. La fecha efectiva de descarga del boletín no quedó registrada. Los peajes no están incorporados; un importe desconocido no se reemplaza por cero.
+
 ## Atribución
 
 Rutas: © openrouteservice by HeiGIT. Datos cartográficos: © OpenStreetMap contributors, ODbL. Coordenadas de ciudades: IGN, CC BY 4.0, según procedencia del catálogo. Ver `metadata.json`.
@@ -309,17 +339,27 @@ Rutas: © openrouteservice by HeiGIT. Datos cartográficos: © OpenStreetMap con
 
 
 def _license_notice() -> str:
-    return """# Estado de licencia de datos — no redistribuir todavía
+    return """# Licencias y atribución de los datos
 
-Este archivo no concede licencia de redistribución. Los términos públicos de ORS enlazan a condiciones de cuenta que requieren autenticación; una respuesta pública del foro de HeiGIT de 2026-10-12 afirma CC BY-SA 4.0, mientras que otra documentación pública indexada refiere CC BY 4.0. La respuesta de soporte remite a los términos y declara que HeiGIT no da asesoría legal sobre el alcance. Además, la matriz resulta de rutas basadas en OSM y el tratamiento como base derivada bajo ODbL debe resolverse.
+## Resultados de openrouteservice
 
-Hasta conservar y revisar los términos exactos aceptados por esta cuenta y confirmar el tratamiento ODbL de las matrices derivadas, los CSV solo pueden mantenerse en el área local del equipo. No publicar este directorio.
+Los resultados Matrix y las matrices de combustible derivadas se ofrecen bajo [Creative Commons Atribución-CompartirIgual 4.0 Internacional (CC BY-SA 4.0)](https://creativecommons.org/licenses/by-sa/4.0/), conforme a la sección **Attribution and License — openrouteservice** de los términos de HeiGIT aplicables a la cuenta, consultados el 2026-10-12. El documento no muestra versión ni fecha de vigencia; se registra la fecha de consulta.
 
-Fuentes consultadas el 2026-10-12:
+Conserva la atribución **© openrouteservice by HeiGIT | Data from OpenStreetMap**, indica que los valores fueron transformados y cita esta licencia. Las distancias se normalizaron de m a km (÷1000), las duraciones de s a h (÷3600), y el combustible se derivó con `km / 100 × consumo (L/100 km) × precio (EUR/L)`. Las modificaciones y fuentes se registran en `metadata.json`.
 
-- ORS Terms of Service: https://openrouteservice.org/terms-of-service/ (redirige a términos de cuenta autenticados).
-- Respuesta del foro ORS/HeiGIT sobre resultados y CC BY-SA 4.0: https://ask.openrouteservice.org/t/free-plan-in-an-app-with-a-paid-tier-license-cc-by-sa-4-0-personal-data-and-attribution-questions/8079
-- Respuesta del foro ORS/HeiGIT sobre persistencia de resultados Matrix: https://ask.openrouteservice.org/t/persistent-storage-and-reuse-of-matrix-api-duration-results/8010
-- OSMF Attribution Guidelines: https://osmfoundation.org/wiki/Attribution_Guidelines
-- OSM Copyright and License: https://www.openstreetmap.org/copyright
+## OpenStreetMap
+
+La atribución a OpenStreetMap se mantiene separada de la licencia ORS. Fuente: [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), datos bajo [Open Database License 1.0 (ODbL)](https://opendatacommons.org/licenses/odbl/1-0/). Este paquete incluye métricas de ruta producidas por el motor; no incluye el extracto de carreteras, geometrías ni atributos viales de la base OSM. Se proporciona atribución y enlace ODbL. No se declara que ODbL y CC BY-SA sean equivalentes ni que una licencia anule la otra.
+
+La guía OSMF de [atribución para bases de datos y motores de rutas](https://osmfoundation.org/wiki/Attribution_Guidelines) exige identificar OpenStreetMap y enlazar la licencia; indica también que el share-alike ODbL es pertinente si la obra constituye una base derivada. Si el paquete se amplía con geometrías/atributos de OSM o una revisión determina que es una base derivada, habrá que revisar y cumplir por separado ODbL 4.4/4.6 (licencia compatible y acceso a la base derivada o alteraciones) antes de distribuir esa versión.
+
+## Catálogo geográfico
+
+`cities.csv` reproduce las coordenadas IGN con procedencia por ciudad, bajo [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) según los avisos de reutilización del IGN recogidos en el catálogo. Esta licencia del catálogo no sustituye CC BY-SA de las matrices ORS.
+
+## Código, combustible y alcance
+
+El código del repositorio y los datos tienen avisos separados; este documento no concede licencia al código. El precio de combustible procede del Weekly Oil Bulletin de la Comisión Europea, publicado el 2026-10-08 y consultado el 2026-10-12; la unidad original EUR/1000 L se normaliza a EUR/L. `metadata.json` conserva fuente, fechas y hash del archivo fuente. La fecha efectiva de descarga no quedó registrada.
+
+No se incluyen tarifas de peaje. Un peaje desconocido no equivale a cero y este conjunto **no constituye una matriz de costo económico total**.
 """

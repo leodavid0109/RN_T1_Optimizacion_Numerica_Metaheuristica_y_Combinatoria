@@ -99,6 +99,8 @@ revisarlo a mano si cambian los resultados. Lo pendiente sale resaltado en amari
 - [Modelos duales del TSP](docs/tsp_modelo_dual.md)
 - [Preparación de adquisición de datos reales del TSP](docs/tsp_adquisicion.md)
 - [ETL local y construcción offline de matrices del TSP](docs/tsp_etl.md)
+- [Dataset nacional offline de España: datos, licencias y uso](data/datasets/spain_tsp_2026/README.md)
+- [Aviso de licencia y atribución de datos](data/datasets/spain_tsp_2026/LICENSE-DATA.md)
 - [Inventario de peajes, piloto Overpass y límites de verificación](docs/tsp_peajes.md)
 - [Ant System para el TSP dirigido](docs/tsp_aco.md)
 - [Líneas base y validación de Ant System](docs/tsp_lineas_base.md)
@@ -109,3 +111,13 @@ Demostración sintética offline de ACO (no utiliza datos de España):
 python -m experiments.tsp_aco_demo --config configs/tsp_aco_demo.yaml
 python -m experiments.validate_tsp_aco --config configs/tsp_baselines_demo.yaml
 ```
+
+### Instancia vial nacional offline
+
+El paquete `data/datasets/spain_tsp_2026/` contiene el catálogo de 47 ciudades y matrices dirigidas de distancia, duración y combustible en varios escenarios. Se carga y valida sin ORS:
+
+```bash
+python -c "from src.tsp.etl import load_published_dataset; d=load_published_dataset('data/datasets/spain_tsp_2026'); print(len(d['city_order']), d['distance_km'].shape)"
+```
+
+Las salidas de openrouteservice están bajo CC BY-SA 4.0 con atribución a HeiGIT; la atribución a OpenStreetMap y el aviso/enlace ODbL se documentan por separado. El catálogo de ciudades conserva la procedencia IGN. El dataset no incluye tarifas verificadas para todos los arcos, por lo que **no hay una matriz económica total completa**. El código y los datos tienen licencias separadas; no se infiere licencia de software a partir de `LICENSE-DATA.md`.

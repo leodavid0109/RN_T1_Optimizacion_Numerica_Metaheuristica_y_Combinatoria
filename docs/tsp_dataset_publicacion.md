@@ -1,52 +1,44 @@
-# Dataset nacional TSP: preparación y estado de redistribución
+# Publicación del dataset nacional TSP
 
-Consulta de licencias: 12 de octubre de 2026.
+Consulta y revisión documental: 2026-10-12. Términos HeiGIT de cuenta revisados por el integrante 3 en `https://account.heigit.org/info/tos`, sección **Attribution and License — openrouteservice**. El documento citado no muestra número de versión ni fecha de vigencia; se registra la fecha de consulta.
 
-## Qué se prepara
+## Paquete y reconstrucción
 
-`experiments/export_spain_tsp_dataset.py` crea offline `data/datasets/spain_tsp_2026/` desde el snapshot Matrix local validado y el catálogo canónico. Produce ciudades, distancias en km, duraciones en horas, matrices de combustible low/reference/high en EUR, metadatos, README, aviso de licencia y hashes SHA-256. Los números CSV se emiten con 17 cifras significativas y LF, sin modificar el snapshot de origen. `metadata.json` identifica el hash de respuesta (`8660e42cb511a530e5dfeb2dea003af50b2013dc03cebedd74276d2eebab1d9e`), el hash del contenedor crudo y los hashes de CSV. `SHA256SUMS.txt` cubre los archivos generados, incluido `metadata.json`.
+El paquete `data/datasets/spain_tsp_2026/` contiene las 47 ciudades, distancia dirigida en km, duración dirigida en horas, combustible de referencia/bajo/alto en euros, metadatos, README, aviso de licencia y SHA-256. No contiene respuesta HTTP cruda, geometrías ORS, archivos temporales ni peajes. El snapshot local de origen tiene SHA-256 `ea9c13d6a0c35bf3db3603be8e53372f94c5154682a9bf1d5a69c9e6a59ebf30`; el hash de la respuesta Matrix es `8660e42cb511a530e5dfeb2dea003af50b2013dc03cebedd74276d2eebab1d9e`.
 
-Ejemplo de exportación, sin red:
+El exportador offline está en `experiments/export_spain_tsp_dataset.py`. Para reconstruir, se necesita el snapshot local ignorado de ORS:
 
 ```powershell
 python -m experiments.export_spain_tsp_dataset --snapshot data/raw/routes/openrouteservice_driving-car_matrix_d762a01753af5a8418af_8660e42cb511a530e5dfeb2dea003af50b2013dc03cebedd74276d2eebab1d9e.json
 ```
 
-Carga offline y verificación de hashes:
+Los tres integrantes pueden cargar el dataset publicado sin conexión ni acceso a `data/raw`/`data/processed`:
 
 ```powershell
-python -c "from src.tsp.etl import load_published_dataset; d=load_published_dataset('data/datasets/spain_tsp_2026'); print(len(d['city_order']), d['distance_km'].shape, d['duration_hours'].shape)"
+python -c "from src.tsp.etl import load_published_dataset; d=load_published_dataset('data/datasets/spain_tsp_2026'); print(len(d['city_order']), d['distance_km'].shape)"
 ```
 
-El cargador entrega las matrices de distancia, duración y combustible. No ofrece una matriz económica total: los peajes siguen incompletos y desconocidos no equivalen a cero. La matriz de combustible se calcula como `km / 100 × L/100 km × EUR/L`; se excluyen mantenimiento, seguro y depreciación.
+El cargador comprueba hashes, IDs y orden canónico; el exportador valida dimensiones, valores finitos/no negativos, diagonal cero, arcos dirigidos y fórmula de combustible. Los CSV conservan 47×47 valores numéricos (más la columna/fila de IDs). La adquisición del Matrix fue `driving-car`, métricas distancia y duración, unidad original `m` para distancia y `s` para duración. Se normalizó `m / 1000 = km` y `s / 3600 = h`. El endpoint usó la preferencia predeterminada del servicio; no se iguala a `fastest` de Directions. La versión del grafo no está informada.
 
-## Decisión de publicación
+El combustible se calcula `distancia_km / 100 × consumo_L_100km × precio_EUR_L`, con BMW 120 F70, 5,4 L/100 km de referencia y sensibilidades 5,3/5,5; precio derivado del Weekly Oil Bulletin de la Comisión Europea publicado el 2026-10-08, consultado el 2026-10-12. La fecha efectiva de descarga del XLSX no se registró y se mantiene desconocida.
 
-Los CSV reales se preparan localmente, pero **no se agregan a Git ni se publican en GitHub en esta etapa**. `.gitignore` mantiene excluidos `data/raw/routes/` y `data/processed/matrices/`; no se relajan esas exclusiones. El paquete local de preparación se deja sin seguimiento de Git hasta cerrar los derechos.
+## Licencias distintas para datos distintos
 
-La página pública [ORS Terms of Service](https://openrouteservice.org/terms-of-service/) redirige actualmente a los términos de la cuenta alojados en `account.heigit.org`, cuyo contenido no es accesible públicamente en la consulta realizada. La respuesta de un representante del foro ORS/HeiGIT del 12-10-2026 afirma que los resultados se licencian CC BY-SA 4.0 y remite a los términos; en ese mismo hilo el representante expresa que HeiGIT no está cualificado para resolver la interpretación jurídica. Otra página pública de términos consultada/indexada se refiere a CC BY 4.0. La discrepancia no se resuelve suponiendo que una atribución de respuesta del API sea una licencia.
+- **Resultados ORS Matrix y matrices de combustible derivadas:** CC BY-SA 4.0, conforme a los términos de cuenta indicados arriba. Atribución exigida por HeiGIT: **© openrouteservice by HeiGIT | Data from OpenStreetMap**. Conservar el aviso de licencia, identificar transformaciones/cambios y compartir adaptaciones de estos resultados bajo CC BY-SA 4.0.
+- **Catálogo de ciudades:** CC BY 4.0 para las coordenadas procedentes de IGN, con procedencia individual en `cities.csv`.
+- **OpenStreetMap:** se da crédito a OpenStreetMap y se enlaza la ODbL 1.0. La matriz contiene métricas producidas por el motor de rutas; no se distribuye un extracto de carreteras, geometrías ni atributos viales OSM. Conforme a la guía OSMF de atribución para motores de rutas, se conserva la atribución y el vínculo de licencia. Esto no convierte ODbL y CC BY-SA en licencias equivalentes ni aplica una en sustitución de la otra. Si una ampliación incorporara una base derivada de OSM, habría que cumplir por separado ODbL Share-Alike y acceso a esa base/alteraciones antes de distribuirla.
+- **Código:** el aviso de datos no licencia el software. El repositorio no contiene un `LICENSE` general de código; no se afirma una licencia de código que no exista.
 
-El campo `results_license` existente en el JSON local fue escrito por `RouteStore` como anotación propia, no proviene del cuerpo original de Matrix. No constituye evidencia contractual ni metadato devuelto por el servidor. La respuesta original incluye atribución `openrouteservice.org | OpenStreetMap contributors`; no declara por sí misma una licencia de redistribución.
+Creative Commons BY-SA 4.0 cubre los derechos licenciados por el proveedor, incluidos los derechos sui generis de base de datos cuando correspondan; sus condiciones de atribución/share-alike no sustituyen las obligaciones independientes de ODbL si se distribuyera una base derivada OSM. No se identificó una incompatibilidad concreta para este paquete de métricas de rutas sin contenido de red OSM; se conservan atribución y enlace ODbL, y se deja documentado el límite de alcance.
 
-Además, OpenStreetMap se distribuye bajo [ODbL](https://www.openstreetmap.org/copyright). La OSM Foundation requiere atribución y, para bases de datos, incluir atribución y texto/enlace de ODbL en la base, base derivada o base colectiva. No está determinado aquí si una tabla de 2.162 distancias/duraciones de rutas constituye una base derivada relevante, ni cómo reconciliar obligaciones ODbL con la licencia de salida ORS. La licencia de metadatos de OSM no decide por sí sola el régimen de la salida calculada.
+Fuentes oficiales revisadas el 2026-10-12:
 
-Por estas razones no se asigna todavía CC BY 4.0, CC BY-SA 4.0 ni ODbL como licencia única del conjunto. `LICENSE-DATA.md` local es un aviso de no redistribución, no una concesión de derechos. Antes de publicar hace falta conservar los términos exactos aceptados por la cuenta ORS usada y obtener confirmación inequívoca del régimen aplicable a resultados Matrix (incluida redistribución persistente en repositorio público), además de resolver documentalmente la interacción con ODbL. Si los términos solo permiten CC BY-SA, la licencia y atribución del paquete deberán reflejarlo y el equipo tendrá que confirmar que puede cumplir sus condiciones.
+- Términos de la cuenta HeiGIT, sección **Attribution and License — openrouteservice**: https://account.heigit.org/info/tos
+- Texto legal CC BY-SA 4.0: https://creativecommons.org/licenses/by-sa/4.0/legalcode
+- ODbL 1.0: https://opendatacommons.org/licenses/odbl/1-0/
+- Guía de atribución OSMF: https://osmfoundation.org/wiki/Attribution_Guidelines
+- Copyright y licencia de OpenStreetMap: https://www.openstreetmap.org/copyright
 
-## Procedencia y alcance económico
+## Alcance económico
 
-- ORS Matrix `driving-car`, perfil de automóvil; Matrix devolvió distancias y duraciones. No se informó una versión del grafo/mapa.
-- La preferencia de ruta guardada se registra como valor predeterminado del endpoint, no como `fastest` de Directions.
-- La consulta local del snapshot ocurrió a las 2026-10-12 22:14:41 hora de Bogotá (2026-10-13T03:14:41Z). La fecha real de descarga del precio de combustible no está registrada; se conserva `null`, no se inventa.
-- Coordenadas del catálogo: IGN, procedencia indicada por registro.
-- Combustible: BMW 120 F70, supuesto representativo de 5,4 L/100 km, con escenarios 5,3 y 5,5; precio reportado por el boletín oficial de 2026-10-08, normalizado desde EUR/1000 L.
-- Peajes no incluidos. No existe una matriz de costo económico total ni afirmación de optimalidad sobre la matriz nacional.
-
-## Fuentes consultadas
-
-- [Términos ORS](https://openrouteservice.org/terms-of-service/) — consultados 2026-10-12; redirigen a términos de cuenta autenticados.
-- [Respuesta de HeiGIT/ORS sobre CC BY-SA 4.0](https://ask.openrouteservice.org/t/free-plan-in-an-app-with-a-paid-tier-license-cc-by-sa-4-0-personal-data-and-attribution-questions/8079) — publicada 2026-10-12.
-- [Respuesta de HeiGIT/ORS sobre almacenamiento persistente de Matrix](https://ask.openrouteservice.org/t/persistent-storage-and-reuse-of-matrix-api-duration-results/8010) — publicada 2026-08-27; condiciona el uso a los términos.
-- [OSMF Attribution Guidelines](https://osmfoundation.org/wiki/Attribution_Guidelines) — adoptadas 2021-06-25; página consultada 2026-10-12.
-- [OSM Copyright and License](https://www.openstreetmap.org/copyright) — consultado 2026-10-12.
-
-El aviso local `data/datasets/spain_tsp_2026/LICENSE-DATA.md` registra esta decisión junto al paquete preparado.
+No se incluyen importes de peajes; peaje desconocido no significa cero. Las matrices de distancia, duración y combustible no forman una matriz económica completa `v*T + P + F`. ACO y GA pueden usar estos componentes offline al construir una instancia cuya función objetivo esté definida con sus componentes verificables; no debe etiquetarse como resultado económico final mientras falten tarifas.

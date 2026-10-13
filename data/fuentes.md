@@ -22,7 +22,7 @@ Cada dato real lleva fuente primaria y fecha de consulta. Los archivos crudos va
 | Precio de gasolina 95 (Eurosuper 95) | [Weekly Oil Bulletin de la Comisión Europea](https://energy.ec.europa.eu/data-and-analysis/weekly-oil-bulletin_en); [aviso de reutilización de la Comisión](https://commission.europa.eu/legal-notice_en) | 2026-10-12 | `data/raw/weekly_oil_bulletin_2026-10-08_prices_with_taxes.xlsx` | integrante 3 | Boletín publicado 2026-10-08; hoja `Sheet1`; España en `A28`, Eurosuper 95 en `B1`, unidad en `B2` (`1000 l`) y valor en `B28` (`1849.0983979999999`), con cabecera monetaria A1 `in EUR`: 1849.0983979999999 EUR/1000 L ÷ 1000 = 1.8490983979999999 €/L. La fecha de referencia de precios de A2 es 05/10/2026; la página oficial identifica esta publicación como boletín del 08/10/2026. SHA-256: `CAF597685A68EA265E7E671715622B71B7402DE069D21477331EA196F8F6A3C0`. Consulta del archivo: 2026-10-12; la fecha real de descarga del usuario no está embebida y queda desconocida. El nombre original sugería 2026-09-21, pero el contenido A2 y metadato de modificación (2026-10-08) corresponden a la edición examinada; se conservó el archivo binario y se normalizó su nombre local. La Comisión declara reutilización CC BY 4.0 de contenido propio salvo aviso específico distinto; no se encontró nota individual de licencia en el libro. Atribución y cambio: «Comisión Europea, Weekly Oil Bulletin, precios con impuestos, publicado 2026-10-08; extracción de la fila España y conversión de EUR/1000 L a EUR/L». |
 | Motores de rutas y extracto OSM | [OSRM API](https://project-osrm.org/docs/v26.4.0/api/); [perfil oficial `car.lua`](https://github.com/Project-OSRM/osrm-backend/blob/master/profiles/car.lua); [perfiles OSRM](https://github.com/Project-OSRM/osrm-backend/blob/master/docs/profiles.md); [Valhalla matrix](https://valhalla.github.io/valhalla/api/matrix/api-reference/); [Valhalla costing](https://valhalla.github.io/valhalla/api/turn-by-turn/api-reference/); [Geofabrik España](https://download.geofabrik.de/europe/spain.html); [licencia OSM](https://www.openstreetmap.org/copyright) | 2026-10-12 | No adquirido | integrante 3 | Documentación consultada para planificar la adquisición, no prueba experimental de cobertura o precisión. OSRM Table calcula métricas de las rutas rápidas; su perfil `car.lua` marca `toll` como clase excludable, condicionado a fijar/preprocesar el mismo perfil. Valhalla `use_tolls` es una preferencia, no garantía de ruta sin peaje. Ninguno da por ello una tarifa monetaria oficial. El extracto PBF español consultado tenía 1,4 GB y corte 2026-10-11; no se descargó ni se instalaron motores. Véase `docs/tsp_adquisicion.md`. |
 | Consumo representativo del BMW 120 | [BMW España, datos técnicos BMW Serie 1 F70](https://www.bmw.es/es/coches-bmw/serie-1/bmw-serie-1/datos-tecnicos-bmw-serie1.html) | 2026-10-12 | `configs/tsp_economics.yaml` | integrante 3 | La ficha vigente consultada presenta BMW 120 gasolina mild hybrid 48 V, potencia total 125 kW/170 CV, y consumo promedio WLTP 5,3–5,5 L/100 km; recomienda gasolina de 95 octanos. Se fija 5,4 como punto medio representativo acordado por el equipo, no como dato homologado de una configuración/rueda/acabado concreto. Sensibilidad: 5,3 y 5,5. El perfil ORS no simula este vehículo; el factor se usa solo para convertir kilómetros a combustible estimado. |
-| APIs y ETL de rutas (revisión de términos y capacidad) | [ORS Directions](https://giscience.github.io/openrouteservice/api-reference/endpoints/directions/); [ORS Matrix](https://giscience.github.io/openrouteservice/api-reference/endpoints/matrix/); [restricciones ORS](https://openrouteservice.org/restrictions/); [planes ORS](https://openrouteservice.org/plans/); [términos ORS](https://openrouteservice.org/terms-of-service/); [respuesta HeiGIT sobre licencia de resultados](https://ask.openrouteservice.org/t/free-plan-in-an-app-with-a-paid-tier-license-cc-by-sa-4-0-personal-data-and-attribution-questions/8079); [API OSRM](https://project-osrm.org/docs/v5.24.0/api/); [política demo OSRM](https://github.com/Project-OSRM/osrm-backend/wiki/Api-usage-policy); [API GraphHopper](https://docs.graphhopper.com/openapi); [términos GraphHopper](https://www.graphhopper.com/terms/) | 2026-10-12 | Sin respuestas API nuevas | integrante 3 | Consulta documental únicamente; no se hicieron llamadas API ni se instalaron herramientas. ORS publica límites Matrix de 3.500 pares por request y páginas de planes con límites por día/minuto; la página de cuenta redirige a una sección que requiere autenticación. HeiGIT respondió el 2026-10-12 que los resultados API están bajo CC-BY-SA 4.0; revisar términos del plan de la cuenta antes de publicar snapshots. OSRM documenta Matrix/Route pero su demo advierte contra uso excesivo y no garantiza disponibilidad. GraphHopper permite solo cache temporal y exige paquete/acuerdo para redistribuir. Ver detalles, alcance y cautelas en `docs/tsp_etl.md`. |
+| APIs y ETL de rutas (revisión de términos y capacidad) | [ORS Directions](https://giscience.github.io/openrouteservice/api-reference/endpoints/directions/); [ORS Matrix](https://giscience.github.io/openrouteservice/api-reference/endpoints/matrix/); [restricciones ORS](https://openrouteservice.org/restrictions/); [planes ORS](https://openrouteservice.org/plans/); [términos ORS de cuenta](https://account.heigit.org/info/tos); [respuesta HeiGIT sobre licencia de resultados](https://ask.openrouteservice.org/t/free-plan-in-an-app-with-a-paid-tier-license-cc-by-sa-4-0-personal-data-and-attribution-questions/8079); [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/legalcode); [ODbL](https://opendatacommons.org/licenses/odbl/1-0/); [guía de atribución OSMF](https://osmfoundation.org/wiki/Attribution_Guidelines); [API OSRM](https://project-osrm.org/docs/v5.24.0/api/); [política demo OSRM](https://github.com/Project-OSRM/osrm-backend/wiki/Api-usage-policy); [API GraphHopper](https://docs.graphhopper.com/openapi); [términos GraphHopper](https://www.graphhopper.com/terms/) | 2026-10-12 | Sin respuestas API nuevas | integrante 3 | Consulta documental; no se hicieron llamadas API ni se instalaron herramientas. Los términos de cuenta HeiGIT fueron revisados por el integrante 3 el 2026-10-12, sección “Attribution and License — openrouteservice”: resultados CC BY-SA 4.0 y atribución `© openrouteservice by HeiGIT | Data from OpenStreetMap`; no se muestra fecha/versión del documento. OSM se mantiene con atribución/enlace ODbL separados; no se equiparan licencias. Ver alcance y límites de publicación en `docs/tsp_dataset_publicacion.md`. OSRM demo advierte contra uso excesivo; GraphHopper limita almacenamiento/redistribución por defecto. |
 
 | Detección espacial y tarifas de peajes | [ORS Directions: extra_info](https://giscience.github.io/openrouteservice/api-reference/endpoints/directions/extra-info/); [política de uso de Overpass](https://dev.overpass-api.de/overpass-doc/en/preface/commons.html); [OpenStreetMap: copyright y ODbL](https://www.openstreetmap.org/copyright); [tarifas Autopistas 2026](https://www.autopistas.com/tarifas-y-descuentos/tarifas/); [PDF oficial AP-68 2026](https://www.autopistas.com/wp-content/uploads/2025/12/26_003-Avasa-AP68-Bilbao_Zaragoza-T26.pdf); [Ministerio: tarifas AP-68 2025 y categoría ligera](https://cdn.transportes.gob.es/portal-web-transportes/carreteras/nuestrared/autopistaspeaje/peajes-actuales/autopista-ap-68%2C-bilbao---zaragoza-2025.pdf); [Ministerio: actualización de tarifas estatales y SEITT 2026](https://cdn.transportes.gob.es/portal-web-transportes/recursos-web/transportes/media/press_release/251230-np-nacional-revision-tarifas-autopistas-estatales-y-seitt.pdf); [SEITT/AP-41: tarifas 2026](https://cdn.transportes.gob.es/portal-web-seitt/media/document/precios_web_ap41_2026.pdf); [Álava: transición de la gestión AP-68](https://prentsa.araba.eus/es/-/el-gobierno-foral-presenta-en-jjgg-la-norma-foral-que-regulara-el-sistema-de-pago-por-uso-en-la-ap-68); [BOE: Real Decreto 730/2026](https://www.boe.es/diario_boe/txt.php?id=BOE-A-2026-19039) | 2026-10-12 | Sin descargas geográficas; consulta documental | integrante 3 | ORS `tollways`, `waycategory` y `osmid` ofrecen evidencia cartográfica, no precios. Overpass permite consultas selectivas y reporta HTTP 429 ante límites; su guía recomienda evitar barridos a gran escala. OSM es ODbL y exige atribución; las carpetas de datos de peaje quedan ignoradas localmente mientras se revisa redistribución. Autopistas publica AP-68 2026 por estación/categoría: 39,90 EUR para el par nominal Bilbao–Zaragoza en clase ligera; no se asignó a la geometría ORS porque falta confirmar entradas/salidas. Álava anunció el inicio previsto de un nuevo esquema para el tramo alavés el 2026-11-11, pero el importe definitivo seguía en trámite al consultar; no se extrapola la tarifa anterior. SEITT publica documentos por autopista, con reglas horarias/formas de pago según caso; no se encontró API única completa de tarifas. Metodología implementada y límites en `docs/tsp_peajes.md`. |
 
@@ -114,21 +114,34 @@ del paquete preparado. La respuesta corresponde a `driving-car`, métricas
 distancia/duración, unidades originales m/s y orden canónico de 47 ciudades.
 Las matrices derivadas mantienen 2.162 arcos dirigidos; no contienen peajes.
 
-La página de términos ORS consultada el 2026-10-12 redirigió a términos de
-cuenta autenticados. La respuesta pública de un representante de HeiGIT del
-12-10-2026 señala CC BY-SA 4.0 para resultados, pero remite a los términos y
-expresa que HeiGIT no está cualificado para interpretar cuestiones legales; otra
-referencia pública a los términos menciona CC BY 4.0. OpenStreetMap publica sus
-datos bajo ODbL y exige atribución; la guía OSMF para bases de datos pide incluir
-atribución y la licencia/enlace ODbL en la base o base derivada. La interacción
-entre la licencia ORS aplicable a la cuenta y ODbL para esta matriz derivada no
-se considera resuelta. El campo `results_license` del JSON local fue añadido
-por nuestro `RouteStore`, no es un campo original de ORS.
+El integrante 3 consultó directamente los términos de la cuenta HeiGIT en
+`https://account.heigit.org/info/tos`, sección “Attribution and License —
+openrouteservice”, el 2026-10-12. Esa sección establece CC BY-SA 4.0 para todos
+los resultados ORS y la atribución `© openrouteservice by HeiGIT | Data from
+OpenStreetMap`. El documento no muestra número de versión o fecha de vigencia;
+se registra la fecha de consulta. El texto legal CC BY-SA 4.0 exige atribución
+y compartir adaptaciones bajo la misma licencia o una compatible; cubre
+derechos de base de datos donde corresponda.
+
+OpenStreetMap mantiene una licencia distinta: ODbL 1.0. En este paquete no se
+redistribuye el grafo OSM, geometrías ni atributos viales, sino valores de
+distancia/tiempo resultantes del motor, por lo que conservamos el crédito OSM y
+el enlace a ODbL sin presentar el conjunto como una extracción de la base OSM.
+La guía OSMF de rutas requiere atribución y establece que el share-alike ODbL es
+relevante si la salida constituye una base derivada. Si se amplía el contenido
+con datos de red OSM o se determina que es una base derivada, se revisarán y
+aplicarán por separado las obligaciones ODbL de licencia compatible y acceso a
+la base/alteraciones. CC BY-SA y ODbL no son intercambiables ni se sustituyen.
+El campo `results_license` del JSON local fue añadido por `RouteStore`, no
+devuelto por ORS; la fuente de la licencia efectiva es el documento de cuenta.
 
 Fuentes consultadas el 2026-10-12:
 
-- Términos ORS: https://openrouteservice.org/terms-of-service/ (redirige a
-  términos autenticados de cuenta).
+- Términos de cuenta HeiGIT: https://account.heigit.org/info/tos, sección
+  “Attribution and License — openrouteservice”; consulta del integrante 3
+  2026-10-12, versión/fecha de publicación no indicada.
+- Texto legal CC BY-SA 4.0: https://creativecommons.org/licenses/by-sa/4.0/legalcode
+- ODbL 1.0: https://opendatacommons.org/licenses/odbl/1-0/
 - Respuesta ORS/HeiGIT sobre CC BY-SA 4.0:
   https://ask.openrouteservice.org/t/free-plan-in-an-app-with-a-paid-tier-license-cc-by-sa-4-0-personal-data-and-attribution-questions/8079
 - Respuesta ORS/HeiGIT sobre persistencia de resultados Matrix:
@@ -136,9 +149,9 @@ Fuentes consultadas el 2026-10-12:
 - Guía de atribución OSMF: https://osmfoundation.org/wiki/Attribution_Guidelines
 - Licencia OSM: https://www.openstreetmap.org/copyright
 
-El exportador determinista puede regenerar localmente CSV de ciudades, distancia,
-duración y tres escenarios de combustible, junto con metadatos y hashes. Estos
-archivos siguen sin licencia de redistribución concedida y no deben subirse a
-GitHub hasta obtener los términos exactos aplicables a la clave utilizada y
-resolver el tratamiento ODbL. La fecha efectiva de descarga del boletín de
-combustible continúa sin registro; se conserva como desconocida.
+El paquete versionado está en `data/datasets/spain_tsp_2026/`. El exportador
+produce los CSV con orden canónico, metadatos, hashes y licencias por componente;
+el cargador verifica todo offline. Combustible: se usa el boletín de la Comisión
+publicado el 2026-10-08 y consultado el 2026-10-12; la fecha efectiva de descarga
+del archivo no quedó registrada y se conserva como desconocida. El paquete no
+contiene peajes ni una matriz de costo económico total.

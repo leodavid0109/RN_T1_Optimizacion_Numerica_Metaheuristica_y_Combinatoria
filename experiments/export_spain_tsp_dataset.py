@@ -20,7 +20,8 @@ def main() -> int:
     metadata = export_spain_dataset(args.snapshot, args.catalog, args.economics, args.output)
     print(f"Preparado localmente: {args.output}")
     print(f"Ciudades: {metadata['city_count']}; arcos: {metadata['directed_non_diagonal_arcs']}")
-    print(f"Redistribución: {metadata['redistribution']['status']}; no publicar hasta resolver licencia")
+    print(f"Licencia de resultados ORS: {metadata['redistribution']['ors_results_license']}; "
+          "consulte LICENSE-DATA.md para ODbL y atribución por componente")
     return 0
 
 

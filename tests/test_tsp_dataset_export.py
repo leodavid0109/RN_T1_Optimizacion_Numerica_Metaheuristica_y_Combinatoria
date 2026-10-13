@@ -43,12 +43,16 @@ def test_export_is_deterministic_complete_and_loads_offline(tmp_path):
     }
     for filename in (*metadata_a["files_sha256"], "README.md", "LICENSE-DATA.md", "metadata.json", "SHA256SUMS.txt"):
         assert (first / filename).read_bytes() == (second / filename).read_bytes()
+    snapshot.unlink()
     loaded = load_published_dataset(first)
     assert loaded["distance_km"].shape == (47, 47)
     assert loaded["duration_hours"].shape == (47, 47)
     assert np.count_nonzero(loaded["distance_km"] != loaded["distance_km"].T) > 0
     assert np.allclose(loaded["fuel_reference_eur"], loaded["distance_km"] / 100 * 5.4 * 1.849098398)
     assert loaded["metadata"]["tolls_included"] is False
+    assert loaded["metadata"]["redistribution"]["ors_results_license"] == "CC BY-SA 4.0"
+    assert loaded["metadata"]["redistribution"]["terms_checked_on"] == "2026-10-12"
+    assert loaded["metadata"]["routing"]["source_units"] == {"distance": "m", "duration": "s"}
     assert "economic_cost" not in loaded
 
 
