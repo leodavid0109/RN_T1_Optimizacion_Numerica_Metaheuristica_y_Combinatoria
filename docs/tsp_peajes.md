@@ -299,7 +299,7 @@ Comando preparado para reanudar solo las celdas prioritarias en lotes de una
 solicitud (no ejecutado en esta revisión):
 
 ```powershell
-python -m src.tsp.etl.overpass_pilot --execute --priority 0 --max-requests 1 --interval-seconds 5
+& .\.venv\Scripts\python.exe -m src.tsp.etl.overpass_pilot --execute --priority 0 --max-requests 1 --interval-seconds 5
 ```
 
 Para reducir la carga de una región que vuelve a fallar, debe regenerarse un
