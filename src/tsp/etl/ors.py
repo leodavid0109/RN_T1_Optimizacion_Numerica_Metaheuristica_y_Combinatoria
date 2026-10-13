@@ -16,6 +16,7 @@ from urllib.request import Request, urlopen
 
 from ..alternatives import RouteAlternative, TollStatus
 from .acquisition import AcquisitionRequest
+from .config import DEFAULT_DIRECTIONS_ENDPOINT, normalize_ors_endpoint
 from .ors_extras import analyze_geojson_extras
 
 
@@ -42,7 +43,7 @@ class OpenRouteServiceProvider:
         api_key: str | None = None,
         *,
         profile: str = "driving-car",
-        endpoint: str = "https://api.openrouteservice.org/v2/directions",
+        endpoint: str = DEFAULT_DIRECTIONS_ENDPOINT,
         matrix_endpoint: str | None = None,
         timeout_seconds: float = 30.0,
         max_retries: int = 3,
@@ -55,8 +56,9 @@ class OpenRouteServiceProvider:
     ) -> None:
         self.api_key = api_key if api_key is not None else os.environ.get("ORS_API_KEY")
         self.profile = profile
-        self.endpoint = endpoint.rstrip("/")
-        self.matrix_endpoint = matrix_endpoint.rstrip("/") if matrix_endpoint else None
+        self.endpoint = normalize_ors_endpoint(endpoint, "directions")
+        self.matrix_endpoint = (normalize_ors_endpoint(matrix_endpoint, "matrix")
+                                if matrix_endpoint else None)
         self.timeout_seconds = timeout_seconds
         self.max_retries = max_retries
         self.max_http_requests = max_http_requests

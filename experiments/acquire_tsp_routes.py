@@ -90,7 +90,10 @@ def main() -> int:
                                                        request.avoid_tolls).request_id
                                    if request.extra_info else request.request_id)}
             for request in requests
-        ], "store": str(store_root), "raw_dir": str(raw_root),
+        ], "endpoint": config.directions_endpoint,
+          "effective_endpoint": f"{config.directions_endpoint.rstrip('/')}/{profile}/geojson",
+          "timeout_seconds": config.timeout_seconds,
+          "store": str(store_root), "raw_dir": str(raw_root),
           "max_requests": args.max_requests, "max_http_requests": args.max_http_requests,
           "max_retries": args.max_retries}, ensure_ascii=False, indent=2))
         return 0

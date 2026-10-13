@@ -122,6 +122,28 @@ def test_provider_sends_extra_info_and_rejects_incomplete_response():
         bad.fetch(request)
 
 
+def test_provider_uses_heigit_effective_url_and_two_requested_extras():
+    observed = {}
+
+    def opener(request, timeout):
+        observed["url"] = request.full_url
+        observed["payload"] = json.loads(request.data)
+        response = _response()
+        del response["features"][0]["properties"]["extras"]["osmId"]
+        return _Response(response)
+
+    request = AcquisitionRequest(_city("a", -3), _city("b", -4),
+                                 extra_info=("tollways", "waycategory"))
+    provider = OpenRouteServiceProvider("synthetic-secret", opener=opener, max_retries=0,
+                                        max_http_requests=1, min_interval_seconds=0)
+    provider.fetch(request)
+    assert observed["url"] == (
+        "https://api.heigit.org/openrouteservice/v2/directions/driving-car/geojson"
+    )
+    assert observed["payload"]["extra_info"] == ["tollways", "waycategory"]
+    # La respuesta es válida sin osmId porque el primer piloto no lo solicita.
+
+
 def test_persistence_resume_and_geometry_comparison_offline(tmp_path: Path):
     original = RouteStore(tmp_path / "original", raw_dir=tmp_path / "raw-original")
     enriched = RouteStore(tmp_path / "enriched", raw_dir=tmp_path / "raw-enriched")
@@ -263,6 +285,10 @@ def test_ors_transport_failures_are_classified_without_http_status(
     assert failure["category"] == expected_category
     assert failure["http_request_counted"] is True
     assert failure["http_status_code"] is None and summary.http_status_codes == ()
+    if expected_category == "timeout":
+        assert failure["effective_endpoint"].endswith("/driving-car/geojson")
+        assert failure["timeout_seconds"] == 30.0
+        assert failure["provider_may_have_processed_request"] is True
 
 
 def test_ors_http_400_keeps_sanitized_provider_message_and_status(tmp_path: Path):

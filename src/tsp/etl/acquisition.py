@@ -185,6 +185,15 @@ class AcquisitionManager:
                     "extra_info": list(request.extra_info),
                     "profile": getattr(self.provider, "profile", None),
                     "endpoint": getattr(self.provider, "endpoint", None),
+                    "effective_endpoint": (
+                        f"{getattr(self.provider, 'endpoint', '').rstrip('/')}/"
+                        f"{getattr(self.provider, 'profile', '')}/geojson"
+                        if getattr(self.provider, "endpoint", None) else None
+                    ),
+                    "timeout_seconds": getattr(self.provider, "timeout_seconds", None),
+                    "provider_may_have_processed_request": (
+                        category == "timeout" and attempts > 0 and status_code is None
+                    ),
                 }
                 diagnostic_path = self.store.save_failure(
                     request_id, type(exc).__name__,

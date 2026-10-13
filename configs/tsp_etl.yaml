@@ -1,7 +1,8 @@
-# Parámetros técnicos no secretos. La clave se suministra en ORS_API_KEY.
+# Parámetros técnicos no secretos. ORS_API_KEY autentica; ORS_DIRECTIONS_ENDPOINT
+# y ORS_MATRIX_ENDPOINT, si se definen, prevalecen sobre estas URLs.
 provider: openrouteservice
 profile: driving-car
-directions_endpoint: https://api.openrouteservice.org/v2/directions
+directions_endpoint: https://api.heigit.org/openrouteservice/v2/directions
 matrix_endpoint: https://api.heigit.org/openrouteservice/v2/matrix
 timeout_seconds: 30
 max_retries: 3
