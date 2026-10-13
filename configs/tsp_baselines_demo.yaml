@@ -1,0 +1,11 @@
+# Comparación reducida y sintética; no representa datos de España.
+semillas: [11, 22, 33]
+presupuesto: 60
+dos_opt_policy: best_improvement
+aco:
+  n_ants: 8
+  alpha: 1.0
+  beta: 2.0
+  rho: 0.5
+  q: 1.0
+  tau0: 1.0

@@ -100,3 +100,12 @@ revisarlo a mano si cambian los resultados. Lo pendiente sale resaltado en amari
 - [Preparación de adquisición de datos reales del TSP](docs/tsp_adquisicion.md)
 - [ETL local y construcción offline de matrices del TSP](docs/tsp_etl.md)
 - [Inventario de peajes, piloto Overpass y límites de verificación](docs/tsp_peajes.md)
+- [Ant System para el TSP dirigido](docs/tsp_aco.md)
+- [Líneas base y validación de Ant System](docs/tsp_lineas_base.md)
+
+Demostración sintética offline de ACO (no utiliza datos de España):
+
+```bash
+python -m experiments.tsp_aco_demo --config configs/tsp_aco_demo.yaml
+python -m experiments.validate_tsp_aco --config configs/tsp_baselines_demo.yaml
+```
