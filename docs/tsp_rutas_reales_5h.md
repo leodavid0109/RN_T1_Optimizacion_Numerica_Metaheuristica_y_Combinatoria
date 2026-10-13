@@ -84,7 +84,11 @@ identifica AP-41 como autopista de peaje Madrid–Toledo. La
 enumera corredores tarifados, pero no certifica por omisión que cualquier
 trayecto concreto sea gratuito. En la respuesta ORS Madrid→Toledo hay una
 instrucción de 68,308 km con nombre `Plaza del Emperador Carlos V` (índices
-25–557) y no hay `extra_info` ni IDs OSM de cada vía. La etiqueta no describe
+25–557), desde `[-3.692427, 40.408737]` hasta `[-4.019735, 39.881551]`;
+un punto intermedio es `[-3.819017, 40.159485]`. Son coordenadas `[lon, lat]`
+de la geometría ORS, útiles para revisión manual en el
+[Mapa Oficial de Carreteras 2026](https://publicaciones.transportes.gob.es/mapa-oficial-de-carreteras-2026-edicion-61).
+No hay `extra_info` ni IDs OSM de cada vía. La etiqueta no describe
 fiablemente los 68 km; la ruta podría seguir A-42, pero la evidencia local no
 prueba que todos sus segmentos eviten AP-41 y cualquier otro peaje.
 
