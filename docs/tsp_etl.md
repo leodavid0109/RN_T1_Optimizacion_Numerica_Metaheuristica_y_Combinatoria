@@ -167,6 +167,16 @@ La reconstrucción con `experiments.build_tsp_matrices` es offline. Tras adquiri
 & .\.venv\Scripts\python.exe -m experiments.build_tsp_matrices --mode economic --hour-value 25
 ```
 
+### Análisis offline del piloto de seis arcos
+
+Después de obtener las seis respuestas rápidas y las seis solicitudes con `avoid_tolls`, el informe comparativo local se regenera sin red con:
+
+```powershell
+& .\.venv\Scripts\python.exe -m experiments.analyze_ors_pilot
+```
+
+El script valida el enlace entre estado, respuesta cruda y alternativa normalizada; calcula combustible con los parámetros configurados; compara geometrías y métricas; y estima el ahorro de peaje que tendría que justificar `avoid_tolls` para distintos valores horarios. Produce `ors_pilot_comparison.csv` y `ors_pilot_summary.md` dentro de `data/processed/routes/pilot_analysis/`, ruta excluida de Git junto con las respuestas ORS. Ninguna ruta marcada `avoid_tolls` se trata como peaje cero. El reporte presenta umbrales condicionados a tarifas, no importes reales de peaje.
+
 El archivo local examinado se preserva como `data/raw/weekly_oil_bulletin_2026-10-08_prices_with_taxes.xlsx`. El nombre que traía el archivo decía `2026-09-21`, pero su hoja sitúa la fecha de referencia en 2026-10-05 y sus metadatos fueron modificados el 2026-10-08; el boletín publicado con esa fecha aparece en el índice oficial de la Comisión. Se registraron la celda `Sheet1!B28`, el valor, la unidad y el SHA-256 en `configs/tsp_economics.yaml` y `data/fuentes.md`. La política general de la Comisión permite reutilizar contenido propio bajo CC BY 4.0 salvo aviso distinto; se versiona el XLSX con atribución y registro de que se extrajo y convirtió un valor. La fecha real de descarga del usuario no viene embebida; la consulta/inspección local fue el 2026-10-12.
 
 El API reporta tiempos de perfil, no mediciones futuras ni tiempos de tráfico para una hora de salida. Puede cambiar el resultado con actualización del proveedor o de OSM. Se registra adquisición y perfil; cuando la API no exponga versión de grafo, se conserva expresamente como no informada y se guardan respuesta y petición bajo la licencia aplicable.
