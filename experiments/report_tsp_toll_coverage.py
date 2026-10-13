@@ -10,6 +10,42 @@ from pathlib import Path
 from src.tsp.etl.dataset_export import load_published_dataset
 from src.tsp.etl.store import RouteStore
 from src.tsp.etl.toll_coverage import build_toll_coverage_report, coverage_report_as_dict
+from src.tsp.etl.toll_operation import RouteEvidence, load_route_evidence
+
+
+VERIFIED_ROUTE_FIELDS = ("origin_id", "destination_id", "route_id", "toll_status",
+                         "toll_total_eur", "cost_total_eur", "inventory_source",
+                         "no_toll_source", "matrix_equivalence_source", "section_evidence")
+
+
+def verified_route_rows(economic_rows: list[dict], evidence: tuple[RouteEvidence, ...]) -> list[dict]:
+    """Exporta solo importes completos con evidencias revisadas y trazables."""
+    by_id = {record.route_id: record for record in evidence}
+    result = []
+    for row in economic_rows:
+        if row["toll_status"] not in {"VERIFIED_ZERO", "VERIFIED_AMOUNT"}:
+            continue
+        record = by_id.get(row["route_id"])
+        if (record is None or record.origin_id != row["origin_id"]
+                or record.destination_id != row["destination_id"]
+                or not record.inventory_complete or not record.matrix_route_equivalent
+                or record.review_status != "revisado" or not row["toll_total_eur"]
+                or not row["cost_total_eur"]):
+            raise ValueError("costo completo sin evidencia revisada y equivalencia Matrix/ORS")
+        if row["toll_status"] == "VERIFIED_ZERO" and (float(row["toll_total_eur"]) != 0
+                                                          or not record.no_toll_source):
+            raise ValueError("cero de peaje sin evidencia de ausencia")
+        if row["toll_status"] == "VERIFIED_AMOUNT" and float(row["toll_total_eur"]) <= 0:
+            raise ValueError("peaje positivo sin importe válido")
+        result.append({"origin_id": row["origin_id"], "destination_id": row["destination_id"],
+                       "route_id": row["route_id"], "toll_status": row["toll_status"],
+                       "toll_total_eur": row["toll_total_eur"], "cost_total_eur": row["cost_total_eur"],
+                       "inventory_source": record.inventory_source,
+                       "no_toll_source": record.no_toll_source,
+                       "matrix_equivalence_source": record.matrix_equivalence_source,
+                       "section_evidence": "; ".join(ref for section in record.sections
+                                                      for ref in section.evidence)})
+    return result
 
 
 def generate_report(
@@ -59,6 +95,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output-dir", type=Path, default=Path("data/processed/tolls"))
     parser.add_argument("--economic-arcs", type=Path,
                         default=Path("data/processed/tolls/economic/economic_arcs.csv"))
+    parser.add_argument("--evidence", type=Path,
+                        default=Path("data/processed/tolls/ap68_route_evidence.json"))
     args = parser.parse_args(argv)
     report = generate_report(
         dataset_dir=args.dataset_dir,
@@ -71,6 +109,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.economic_arcs.exists():
         with args.economic_arcs.open(encoding="utf-8", newline="") as stream:
             economic_rows = list(csv.DictReader(stream))
+        verified = verified_route_rows(
+            economic_rows, load_route_evidence(args.evidence) if args.evidence.exists() else ())
+        verified_path = args.output_dir / "verified_real_routes.csv"
+        with verified_path.open("w", encoding="utf-8", newline="") as stream:
+            writer = csv.DictWriter(stream, fieldnames=VERIFIED_ROUTE_FIELDS)
+            writer.writeheader()
+            writer.writerows(verified)
         by_pair = {(row["origin_id"], row["destination_id"]): row for row in economic_rows}
         if len(economic_rows) != report.expected_directed_arcs or len(by_pair) != len(economic_rows):
             raise ValueError("el reporte económico no cubre una vez cada arco dirigido")
