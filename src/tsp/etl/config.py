@@ -12,6 +12,7 @@ import yaml
 class ETLConfig:
     profile: str
     directions_endpoint: str
+    matrix_endpoint: str
     timeout_seconds: float
     max_retries: int
     minimum_seconds_between_requests: float
@@ -32,6 +33,7 @@ def load_etl_config(path: str | Path = "configs/tsp_etl.yaml") -> ETLConfig:
         config = ETLConfig(
             profile=str(data["profile"]),
             directions_endpoint=str(data["directions_endpoint"]).rstrip("/"),
+            matrix_endpoint=str(data["matrix_endpoint"]).rstrip("/"),
             timeout_seconds=float(data["timeout_seconds"]),
             max_retries=int(data["max_retries"]),
             minimum_seconds_between_requests=float(data["minimum_seconds_between_requests"]),
@@ -46,6 +48,7 @@ def load_etl_config(path: str | Path = "configs/tsp_etl.yaml") -> ETLConfig:
     if provider != "openrouteservice":
         raise ValueError("por ahora solo está implementado el proveedor openrouteservice")
     if (not config.profile or not config.directions_endpoint.startswith("https://")
+            or not config.matrix_endpoint.startswith("https://")
             or config.timeout_seconds <= 0 or config.max_retries < 0
             or config.minimum_seconds_between_requests < 0
             or config.standard_plan_daily_directions_limit < 1

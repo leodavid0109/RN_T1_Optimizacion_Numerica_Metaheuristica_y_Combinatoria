@@ -18,12 +18,15 @@ from ..alternatives import RouteAlternative
 class RouteStore:
     """Mantiene catálogo CSV, estados de solicitudes y JSON crudo sin credenciales."""
 
-    def __init__(self, root: str | Path, *, raw_dir: str | Path | None = None) -> None:
+    def __init__(self, root: str | Path, *, raw_dir: str | Path | None = None,
+                 matrix_dir: str | Path | None = None) -> None:
         self.root = Path(root)
         self.raw_dir = Path(raw_dir) if raw_dir is not None else self.root / "raw"
+        self.matrix_dir = Path(matrix_dir) if matrix_dir is not None else self.root
         self.catalog_path = self.root / "route_alternatives.csv"
         self.state_path = self.root / "acquisition_state.json"
         self.raw_dir.mkdir(parents=True, exist_ok=True)
+        self.matrix_dir.mkdir(parents=True, exist_ok=True)
         self.root.mkdir(parents=True, exist_ok=True)
 
     def _state(self) -> dict:
@@ -113,22 +116,37 @@ class RouteStore:
         size = len(city_order)
         if size < 2 or len(set(city_order)) != size:
             raise ValueError("el orden de ciudades del snapshot debe ser único y contener al menos dos ids")
-        paths = {}
+        if set(normalized) != {"distance_km", "time_hours"}:
+            raise ValueError("snapshot Matrix requiere distancia y tiempo normalizados")
         for metric, matrix in normalized.items():
-            if metric not in {"distance_km", "time_hours"} or len(matrix) != size \
-                    or any(len(row) != size for row in matrix):
+            if (len(matrix) != size or any(len(row) != size for row in matrix)):
                 raise ValueError("snapshot Matrix requiere matrices cuadradas km/h con orden canónico")
-            response_digest = sha256(json.dumps(response, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:16]
-            path = self.root / f"{metric}_{_safe_filename(request_id)}_{response_digest}.csv"
+            try:
+                valid_values = all(math.isfinite(float(value)) and float(value) >= 0
+                                   for row in matrix for value in row)
+                valid_diagonal = all(float(matrix[i][i]) == 0.0 for i in range(size))
+            except (TypeError, ValueError, IndexError):
+                valid_values, valid_diagonal = False, False
+            if not valid_values or not valid_diagonal:
+                raise ValueError("snapshot Matrix contiene celdas no finitas/negativas o diagonal distinta de cero")
+        paths = {}
+        response_digest = sha256(json.dumps(response, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+        snapshots_dir = self.matrix_dir / "ors_snapshots"
+        snapshots_dir.mkdir(parents=True, exist_ok=True)
+        for metric, matrix in normalized.items():
+            path = snapshots_dir / f"{metric}_{_safe_filename(request_id)}_{response_digest[:16]}.csv"
             _write_csv_atomic(path, [
                 {"city_id": city_id, **{other_id: ("" if matrix[i][j] is None else str(matrix[i][j]))
                                        for j, other_id in enumerate(city_order)}}
                 for i, city_id in enumerate(city_order)
             ], ["city_id", *city_order])
-            paths[metric] = str(path.relative_to(self.root))
+            paths[metric] = str(path.relative_to(self.matrix_dir))
+        acquired_at = datetime.now(timezone.utc).isoformat()
         raw_record = {"schema_version": 1, "request_id": request_id,
                       "request": safe_request, "response": response,
                       "city_order": city_order, "normalized_matrix_files": paths,
+                      "acquired_at": acquired_at, "response_sha256": response_digest,
+                      "provider": "openrouteservice",
                       "attribution": "© openrouteservice by HeiGIT | Data from OpenStreetMap",
                       "results_license": "CC-BY-SA 4.0 según respuesta HeiGIT del 2026-10-12; confirmar términos vigentes de la cuenta"}
         raw_path = self.raw_dir / f"{_safe_filename(request_id)}_{response_digest}.json"
@@ -136,8 +154,10 @@ class RouteStore:
         state = self._state()
         state["requests"][request_id] = {
             "status": "adquirida", "kind": "matrix", "city_count": size,
-            "acquired_on": datetime.now(timezone.utc).date().isoformat(),
+            "acquired_on": acquired_at[:10], "acquired_at": acquired_at,
+            "response_sha256": response_digest,
             "raw_file": str(raw_path), "normalized_matrix_files": paths,
+            "matrix_directory": str(self.matrix_dir), "city_order": city_order,
         }
         self._write_state(state)
 

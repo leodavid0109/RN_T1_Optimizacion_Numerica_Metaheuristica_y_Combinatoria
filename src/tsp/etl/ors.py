@@ -22,7 +22,7 @@ class ProviderError(RuntimeError):
 
 
 class OpenRouteServiceProvider:
-    """Adaptador de Directions API v2 con reintentos acotados y clave por entorno."""
+    """Adaptador ORS para Directions y Matrix, con clave solo por entorno."""
 
     provider_name = "openrouteservice"
 
@@ -32,6 +32,7 @@ class OpenRouteServiceProvider:
         *,
         profile: str = "driving-car",
         endpoint: str = "https://api.openrouteservice.org/v2/directions",
+        matrix_endpoint: str | None = None,
         timeout_seconds: float = 30.0,
         max_retries: int = 3,
         max_http_requests: int | None = None,
@@ -44,6 +45,7 @@ class OpenRouteServiceProvider:
         self.api_key = api_key if api_key is not None else os.environ.get("ORS_API_KEY")
         self.profile = profile
         self.endpoint = endpoint.rstrip("/")
+        self.matrix_endpoint = matrix_endpoint.rstrip("/") if matrix_endpoint else None
         self.timeout_seconds = timeout_seconds
         self.max_retries = max_retries
         self.max_http_requests = max_http_requests
@@ -112,13 +114,16 @@ class OpenRouteServiceProvider:
             "locations": [[float(city.longitude), float(city.latitude)] for city in cities],
             "metrics": ["distance", "duration"],
             "units": "m",
-            "preference": "fastest",
             "resolve_locations": True,
         }
-        base_url = self.endpoint.removesuffix("/directions")
-        url = f"{base_url}/matrix/{self.profile}"
+        base_url = self.matrix_endpoint or self.endpoint.removesuffix("/directions") + "/matrix"
+        url = f"{base_url}/{self.profile}"
         response = self._post(url, body)
-        return {"method": "POST", "url": url, "body": body}, response, parse_ors_matrix(response, len(cities))
+        return {"method": "POST", "url": url, "body": body,
+                "city_order": [city.city_id for city in cities],
+                "units": {"distance": "km", "duration": "h"},
+                "routing_preference": "public_api_default_for_profile"}, \
+            response, parse_ors_matrix(response, len(cities))
 
     def _post(self, url: str, body: Mapping) -> dict:
         payload = json.dumps(body, separators=(",", ":")).encode("utf-8")
@@ -263,7 +268,7 @@ def parse_ors_geojson(
 
 
 def parse_ors_matrix(response: dict, size: int) -> dict:
-    """Normaliza m/s a km/h y rechaza matrices nulas o de forma incorrecta."""
+    """Normaliza distancia m→km y duración s→h; valida forma, diagonal y valores."""
     try:
         distances = response["distances"]
         durations = response["durations"]
@@ -275,10 +280,17 @@ def parse_ors_matrix(response: dict, size: int) -> dict:
                 raise ValueError
             if any(value is None for value in (*d_row, *t_row)):
                 raise ValueError
-            distance_km.append([float(value) / 1000 for value in d_row])
-            time_hours.append([float(value) / 3600 for value in t_row])
+            distances_km = [float(value) / 1000 for value in d_row]
+            durations_hours = [float(value) / 3600 for value in t_row]
+            if any(not math.isfinite(value) or value < 0 for value in distances_km + durations_hours):
+                raise ValueError
+            distance_km.append(distances_km)
+            time_hours.append(durations_hours)
+        if any(abs(distance_km[i][i]) > 1e-12 or abs(time_hours[i][i]) > 1e-12
+               for i in range(size)):
+            raise ValueError
     except (KeyError, TypeError, ValueError) as exc:
-        raise ProviderError("matriz ORS incompleta, no cuadrada o con celdas sin ruta") from exc
+        raise ProviderError("matriz ORS incompleta, no cuadrada, no finita, negativa o con diagonal inválida") from exc
     for matrix in (distance_km, time_hours):
         if any(not math.isfinite(value) or value < 0 for row in matrix for value in row):
             raise ProviderError("la matriz ORS contiene valores negativos o no finitos")

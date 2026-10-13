@@ -6,7 +6,7 @@
 
 - `AcquisitionRequest` representa una conexión dirigida y sus coordenadas IGN en orden longitud/latitud. Su identificador depende de extremos, coordenadas y estrategia; el estado de adquisición también separa el perfil del motor.
 - `OpenRouteServiceProvider` usa la API Directions v2 para obtener resumen, geometría y alternativas devueltas por el proveedor; puede pedir una preferencia rápida o evitar `tollways`. Un resultado sin tarifa conserva `TollStatus.UNKNOWN` y `toll_cost_eur=None`.
-- El endpoint Matrix del mismo adaptador transforma metros a km y segundos a horas. La respuesta Matrix carece de geometría y no reemplaza Directions para rutas alternativas o verificación vial.
+- Matrix usa un endpoint configurable separado (`https://api.heigit.org/openrouteservice/v2/matrix`), envía todas las ubicaciones en el orden del catálogo sin `sources`/`destinations`, y transforma metros a km y segundos a horas. La respuesta Matrix carece de geometría y no reemplaza Directions para rutas alternativas o verificación vial.
 - `AcquisitionManager` exige un máximo de solicitudes explícito, omite estados ya adquiridos y controla una cuota diaria configurable. HTTP 429 y 5xx reciben reintentos acotados y se respeta `Retry-After`; 401/403 se detienen sin reintento.
 - `RouteStore` conserva el catálogo canónico en CSV, la respuesta y petición sin credenciales en JSON y un registro de estado. El registro local conserva fecha/hora de adquisición en UTC, códigos HTTP observados e intentos por solicitud; los errores guardan tipo, fecha UTC, intentos y códigos sin cabeceras ni cuerpos de error. Las respuestas se identifican por hash para conservar versiones de refresco; las verificaciones de peaje/combustible solo se conservan al refrescar cuando coinciden arco, geometría, distancia y duración. Si la ruta cambió, el registro anterior se archiva en `data/raw/routes/catalog_history/` y el nuevo costo queda pendiente. Escribe los archivos de forma atómica; no existe transacción entre catálogo, JSON y estado, así que una interrupción puede causar una consulta repetida, no la pérdida del CSV previo.
 - `build_matrix_files` crea matrices CSV dirigidas con identificadores y manifiesto de orden/unidades. Las celdas no verificadas quedan vacías. La matriz de costo económico no se escribe si faltan peajes, combustible, arcos o valor horario.
@@ -47,15 +47,43 @@ python -m experiments.acquire_tsp_routes --pairs madrid:toledo,toledo:madrid `
   --strategy fastest --max-requests 2 --max-http-requests 2 --execute
 ```
 
-Plan de una matriz pequeña y solicitud real, si se autoriza. `--max-cells` cuenta N², incluida la diagonal; `--city-ids` fija el orden del CSV:
+Planificar la matriz nacional desde el catálogo (no requiere clave ni red):
 
 ```powershell
-python -m experiments.acquire_tsp_matrix --city-ids madrid,toledo,bizkaia,zaragoza --max-cells 16
-python -m experiments.acquire_tsp_matrix --city-ids madrid,toledo,bizkaia,zaragoza `
-  --max-cells 16 --execute
+& .\.venv\Scripts\python.exe -m experiments.acquire_tsp_matrix --all-cities `
+  --max-cells 3500 --max-http-requests 1 --max-retries 0
 ```
 
-Un snapshot Matrix conserva las ubicaciones de origen/destino resueltas por el proveedor en el JSON original cuando son devueltas, además de coordenadas IGN, orden y matrices normalizadas. Directions conserva geometría por ruta.
+Tras revisar el plan, la adquisición real, si se autoriza, se limita a una petición y cero reintentos:
+
+```powershell
+& .\.venv\Scripts\python.exe -m experiments.acquire_tsp_matrix --all-cities `
+  --max-cells 3500 --max-http-requests 1 --max-retries 0 --execute
+```
+
+47×47 son 2.209 celdas, incluidas las diagonales, y 2.162 arcos dirigidos fuera de diagonal. El límite público documentado es 3.500 pares por solicitud. Para no activar el límite más estricto de solicitudes con argumentos dinámicos, el cuerpo omite `sources` y `destinations`; ambas dimensiones usan todas las ubicaciones. La petición declara `metrics: [distance, duration]`, `units: m` y `resolve_locations: true`. La autenticación va en `Authorization`, nunca al cuerpo ni a los archivos. Matrix se conserva localmente bajo `data/raw/routes/` (respuesta) y `data/processed/matrices/ors_snapshots/` (CSV normalizados); el archivo de estado evita repetir la matriz si ya quedó adquirida. Esas carpetas están excluidas de Git mientras se revisan los términos de redistribución.
+
+No se envía `preference: fastest`: la documentación actual del endpoint Matrix no lo enumera y la propuesta de agregarlo al backend seguía abierta al 2026-10-12. Se usa el comportamiento predeterminado del perfil `driving-car`; no se afirma que cada celda replique exactamente la geometría o el costo de Directions ni se redefine el Modelo A. Después de adquirir Matrix se debe comparar offline distancia y duración de los seis arcos piloto rápidos con `compare_matrix_to_directions`, usando diferencias absolutas y porcentajes relativos a Directions. Las diferencias se reportan; no se fuerza igualdad ni se reemplaza un dato por el otro.
+
+La respuesta cruda conserva metadatos y ubicaciones ajustadas devueltas por el servicio. Los CSV de Matrix conservan orden de filas/columnas explícito, unidades normalizadas y asimetría. El costo de combustible se puede derivar offline desde una matriz de distancia completa, sin incluir peajes ni total económico:
+
+```powershell
+& .\.venv\Scripts\python.exe -m experiments.build_tsp_fuel_matrix `
+  --distance-matrix <CSV-de-distancia-de-ors_snapshots> `
+  --output data/processed/matrices/fuel_cost_eur.csv --scenario reference
+```
+
+El comando valida que la matriz completa siga el orden canónico y escribe un manifiesto de escenario, parámetros y archivos de entrada/salida con sus hashes SHA-256. No construye la matriz económica total; los peajes desconocidos no se convierten en cero.
+
+Los CSV de distancia y duración pueden volver a generarse, también sin conexión, desde su JSON original verificado. El replay valida el hash de la respuesta y el orden exacto del catálogo antes de escribir:
+
+```powershell
+& .\.venv\Scripts\python.exe -m experiments.rebuild_tsp_matrix_snapshot `
+  --raw-snapshot data/raw/routes/<snapshot-matrix-json> `
+  --output-dir data/processed/matrices/ors_snapshots
+```
+
+El manifiesto del replay conserva hash/fecha de adquisición del snapshot, perfil, unidades, atribución y hashes de los CSV generados. El formato numérico permite reconstruir los valores float64. A partir del CSV de distancia regenerado se pueden crear escenarios de combustible con `experiments.build_tsp_fuel_matrix`; sus manifiestos guardan el hash de entrada y salida.
 
 Agregar un candidato que evite vías etiquetadas como peaje requiere una consulta aparte por arco:
 
@@ -89,11 +117,11 @@ El motor ORS acepta indicaciones de evitación para Directions. La disponibilida
 
 | Servicio | Capacidades verificadas en documentación | Cuotas / credenciales | Conservación y redistribución |
 |---|---|---|---|
-| openrouteservice alojado | Directions v2 con geometría e información adicional; Matrix de distancia/tiempo. Directions admite opciones y rutas alternativas; hay un límite publicado de tres candidatas y no se garantiza que se devuelvan. Evitación se aplica a Directions; no se presupone que Matrix acepte las mismas opciones. | Requiere clave. Cuotas dependen del plan; revisar al ejecutar, no codificar como constantes legales. | Términos publicados requieren atribución. Una respuesta pública oficial de HeiGIT fechada 2026-10-12 afirma que resultados de API se licencian CC-BY-SA 4.0. Conservar respuestas localmente con atribución parece viable bajo esa licencia; publicar implica cumplir atribución y compartir bajo términos compatibles. Revisar el texto vigente de términos antes de publicar las respuestas. |
+| openrouteservice alojado | Directions v2 con geometría e información adicional; Matrix de distancia/tiempo. Directions admite opciones y rutas alternativas; hay un límite publicado de tres candidatas y no se garantiza que se devuelvan. Evitación se aplica a Directions; no se presupone que Matrix acepte las mismas opciones. | Requiere clave. Cuotas dependen del plan; revisar al ejecutar, no codificar como constantes legales. | Los términos de cuenta HeiGIT fueron consultados el 2026-10-12, sección “Attribution and License — openrouteservice”: resultados de ORS bajo CC BY-SA 4.0 y atribución `© openrouteservice by HeiGIT | Data from OpenStreetMap`. Se conserva CC BY-SA para resultados y transformaciones, y atribución/enlace ODbL separados para la fuente OpenStreetMap. El paquete publicado no incluye extracto de red OSM; si el alcance pasa a base derivada, revisar por separado ODbL Share-Alike y acceso a alteraciones. |
 | OSRM demo público | Route devuelve distancias, duraciones y geometría; `alternatives` es no exhaustivo. Table devuelve tiempos/distancias de rutas rápidas, en segundos/metros, y admite matrices dirigidas. No hay tarifas de peaje. | Sin clave en la API documentada; el demo no ofrece cuota/garantía estable. Política: no uso excesivo, atribución OSM/OSRM, identificador de aplicación; servicio puede retirarse. | No usar para procesar las 2.162 conexiones. El demo no garantiza disponibilidad/calidad ni fecha de mapa; adecuado solo para pruebas pequeñas. Datos OSM requieren atribución/licencia ODbL. |
 | GraphHopper Directions API alojada | Servicio comercial de rutas; API requiere cuenta e identificador. La página técnica ofrece opciones de routing, pero el alcance de perfiles/alternativas debe probarse antes de seleccionarlo. | Requiere clave; paquetes de pago por contrato y límites documentales/paquete. | Términos leídos el 2026-10-12 dicen que resultados solo se cachean temporalmente en cliente y que redistribución requiere paquete/contrato personalizado; no es opción compatible por defecto con el snapshot público y offline previsto. |
 
-La opción inicial para un piloto controlado es ORS, condicionada a revisar y archivar los términos exactos del plan de la cuenta, cuotas reales y obligaciones CC-BY-SA/ODbL antes de publicar resultados. Hay una discrepancia de versiones: un resultado de términos ORS consultado muestra CC-BY 4.0, mientras que la respuesta directa de HeiGIT del 2026-10-12 indica CC-BY-SA 4.0; la página actual de cuenta redirige a acceso autenticado. Por prudencia este ETL documenta la licencia más reciente comunicada por HeiGIT, pero la distribución pública de respuestas crudas queda pendiente de guardar/revisar el texto vigente de términos de la cuenta. Si el equipo no puede cumplir esas condiciones, alternativa: autoalojar un motor libre con un extracto/versionado OSM autorizado, a costa de infraestructura y procesamiento que esta arquitectura intenta evitar.
+La etiqueta `results_license` de los JSON guardados por `RouteStore` es una anotación añadida por el ETL, no un campo original del API. La licencia de los resultados se toma de la sección de términos de cuenta indicada arriba, no de esa etiqueta. Véase [publicación del dataset y alcance de las licencias](tsp_dataset_publicacion.md). Los datos de rutas publicados llevan su aviso de licencia/atribución; las geometrías y el inventario OSM descargados para el piloto Overpass permanecen excluidos de Git y requieren revisión independiente.
 
 ## Peajes, combustible y límites científicos
 
@@ -184,7 +212,8 @@ El API reporta tiempos de perfil, no mediciones futuras ni tiempos de tráfico p
 ## Fuentes consultadas
 
 - ORS API Reference: [Directions](https://giscience.github.io/openrouteservice/api-reference/endpoints/directions/), [Matrix](https://giscience.github.io/openrouteservice/api-reference/endpoints/matrix/) y [restricciones de API](https://openrouteservice.org/restrictions/).
-- ORS [planes y cuotas](https://openrouteservice.org/plans/) y [términos de servicio](https://openrouteservice.org/terms-of-service/); la página de cuenta requiere autenticación. La respuesta de HeiGIT en [consulta de licencia de resultados](https://ask.openrouteservice.org/t/free-plan-in-an-app-with-a-paid-tier-license-cc-by-sa-4-0-personal-data-and-attribution-questions/8079) fechada 2026-10-12 declara CC-BY-SA 4.0.
+- ORS [planes y cuotas](https://openrouteservice.org/plans/) y [términos de servicio de la cuenta HeiGIT](https://account.heigit.org/info/tos), sección “Attribution and License — openrouteservice”, consultados el 2026-10-12; resultados CC BY-SA 4.0. Véase también la [respuesta pública HeiGIT](https://ask.openrouteservice.org/t/free-plan-in-an-app-with-a-paid-tier-license-cc-by-sa-4-0-personal-data-and-attribution-questions/8079).
+- Licencias oficiales revisadas para publicación: [CC BY-SA 4.0 legal code](https://creativecommons.org/licenses/by-sa/4.0/legalcode), [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/) y [guía de atribución OSMF](https://osmfoundation.org/wiki/Attribution_Guidelines). El alcance de share-alike ODbL se trata por separado; no se equipara a CC BY-SA.
 - OSRM [API](https://project-osrm.org/docs/v5.24.0/api/) y [política de uso del servidor demo](https://github.com/Project-OSRM/osrm-backend/wiki/Api-usage-policy).
 - GraphHopper [Directions API](https://docs.graphhopper.com/openapi) y [términos del servicio](https://www.graphhopper.com/terms/), que especifican cacheado temporal y acuerdo para redistribución.
 - Para capitales, vehículo, peajes y combustible siguen aplicando los registros de [data/fuentes.md](../data/fuentes.md); la tarifa monetaria de peajes continúa pendiente de verificación para muchos arcos.

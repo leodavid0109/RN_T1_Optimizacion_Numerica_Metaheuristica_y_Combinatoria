@@ -2,6 +2,7 @@
 provider: openrouteservice
 profile: driving-car
 directions_endpoint: https://api.openrouteservice.org/v2/directions
+matrix_endpoint: https://api.heigit.org/openrouteservice/v2/matrix
 timeout_seconds: 30
 max_retries: 3
 minimum_seconds_between_requests: 1.5
