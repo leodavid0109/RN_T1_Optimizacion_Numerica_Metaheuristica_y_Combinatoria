@@ -4,7 +4,8 @@ from dataclasses import replace
 from io import BytesIO
 import json
 from pathlib import Path
-from urllib.error import HTTPError
+import socket
+from urllib.error import HTTPError, URLError
 
 import pytest
 
@@ -221,3 +222,112 @@ def test_overpass_known_node_lookup_is_exact_bounded_and_incremental(tmp_path: P
     assert "node%28id%3A35292790%2C41270656%29" in requests[0]
     with pytest.raises(ValueError, match="entre 1 y 50"):
         overpass_node_ids_query(range(1, 52))
+
+
+def test_ors_connection_refused_writes_safe_diagnostic_and_counts_attempt(tmp_path: Path):
+    request = AcquisitionRequest(_city("madrid", -3), _city("toledo", -4),
+                                 extra_info=("tollways", "waycategory"))
+    token = "synthetic-api-secret"
+
+    def refused(*_args, **_kwargs):
+        raise URLError(ConnectionRefusedError(10061, "connection refused"))
+
+    provider = OpenRouteServiceProvider(token, opener=refused, max_retries=0,
+                                        max_http_requests=1, min_interval_seconds=0)
+    store = RouteStore(tmp_path / "routes")
+    summary = AcquisitionManager(provider, store).run([request], max_requests=1)
+    failure = summary.failures[0]
+    diagnostic = json.loads(Path(failure["diagnostic_file"]).read_text(encoding="utf-8"))
+    assert summary.failed == 1 and summary.http_requests == 1
+    assert failure["category"] == "connection_refused"
+    assert failure["stage"] == "transport" and failure["http_request_counted"] is True
+    assert failure["http_status_code"] is None and failure["http_status_codes"] == ()
+    assert diagnostic["request_id"].endswith(request.request_id)
+    assert token not in json.dumps(diagnostic)
+
+
+@pytest.mark.parametrize(("reason", "expected_category"), [
+    (socket.gaierror(-2, "name resolution failed"), "dns_error"),
+    (socket.timeout("synthetic timeout"), "timeout"),
+])
+def test_ors_transport_failures_are_classified_without_http_status(
+    tmp_path: Path, reason, expected_category: str,
+):
+    request = AcquisitionRequest(_city("madrid", -3), _city("toledo", -4))
+    provider = OpenRouteServiceProvider("synthetic-api-secret",
+        opener=lambda *_args, **_kwargs: (_ for _ in ()).throw(URLError(reason)),
+        max_retries=0, max_http_requests=1, min_interval_seconds=0)
+    summary = AcquisitionManager(provider, RouteStore(tmp_path / expected_category)).run(
+        [request], max_requests=1)
+    failure = summary.failures[0]
+    assert failure["category"] == expected_category
+    assert failure["http_request_counted"] is True
+    assert failure["http_status_code"] is None and summary.http_status_codes == ()
+
+
+def test_ors_http_400_keeps_sanitized_provider_message_and_status(tmp_path: Path):
+    request = AcquisitionRequest(_city("madrid", -3), _city("toledo", -4),
+                                 extra_info=("osmid",))
+    token = "synthetic-api-secret"
+    body = json.dumps({"error": {"code": 2010,
+        "message": "Invalid extra_info value osmid; do not echo synthetic-api-secret"}}).encode()
+
+    def bad_parameter(http_request, timeout):
+        raise HTTPError(http_request.full_url, 400, "Bad Request", {}, BytesIO(body))
+
+    provider = OpenRouteServiceProvider(token, opener=bad_parameter, max_retries=0,
+                                        max_http_requests=1, min_interval_seconds=0)
+    store = RouteStore(tmp_path / "routes")
+    summary = AcquisitionManager(provider, store).run([request], max_requests=1)
+    failure = summary.failures[0]
+    assert summary.http_requests == 1 and summary.http_status_codes == (400,)
+    assert failure["category"] == "invalid_parameters" and failure["http_status_code"] == 400
+    assert "Invalid extra_info value osmid" in failure["message"]
+    assert token not in failure["message"]
+    assert token not in Path(failure["diagnostic_file"]).read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(("status", "expected_category"), [
+    (401, "authentication_rejected"), (403, "authentication_rejected"),
+    (429, "rate_limited"), (503, "server_error"),
+])
+def test_ors_http_status_categories_are_diagnosed(status: int, expected_category: str,
+                                                  tmp_path: Path):
+    request = AcquisitionRequest(_city("madrid", -3), _city("toledo", -4))
+
+    def rejected(http_request, timeout):
+        raise HTTPError(http_request.full_url, status, "synthetic response", {},
+                        BytesIO(b'{"error":{"message":"synthetic provider response"}}'))
+
+    provider = OpenRouteServiceProvider("synthetic-api-secret", opener=rejected,
+        max_retries=0, max_http_requests=1, min_interval_seconds=0)
+    summary = AcquisitionManager(provider, RouteStore(tmp_path / str(status))).run(
+        [request], max_requests=1)
+    failure = summary.failures[0]
+    assert failure["category"] == expected_category
+    assert failure["http_status_code"] == status
+    assert summary.http_requests == 1 and summary.http_status_codes == (status,)
+
+
+def test_ors_persistence_failure_after_http_200_is_separated_from_transport(tmp_path: Path,
+                                                                            monkeypatch):
+    request = AcquisitionRequest(_city("madrid", -3), _city("toledo", -4),
+                                 extra_info=("tollways", "osmid", "waycategory"))
+    provider = OpenRouteServiceProvider("synthetic-api-secret",
+        opener=lambda *_args, **_kwargs: _Response(_response()), max_retries=0,
+        max_http_requests=1, min_interval_seconds=0)
+    store = RouteStore(tmp_path / "routes")
+
+    def fail_persist(*_args, **_kwargs):
+        raise OSError("synthetic disk error")
+
+    monkeypatch.setattr(store, "save_success", fail_persist)
+    summary = AcquisitionManager(provider, store).run([request], max_requests=1)
+    failure = summary.failures[0]
+    diagnostic = json.loads(Path(failure["diagnostic_file"]).read_text(encoding="utf-8"))
+    assert summary.http_requests == 1 and summary.http_status_codes == (200,)
+    assert failure["category"] == "persistence_error"
+    assert failure["stage"] == "persistence" and failure["http_status_code"] == 200
+    assert failure["http_request_counted"] is True
+    assert "disk error" not in diagnostic["message"]
+    assert "synthetic-api-secret" not in json.dumps(diagnostic)

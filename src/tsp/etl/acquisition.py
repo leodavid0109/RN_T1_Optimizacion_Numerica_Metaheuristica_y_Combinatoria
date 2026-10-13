@@ -85,6 +85,7 @@ class AcquisitionSummary:
     failed: int
     http_requests: int = 0
     http_status_codes: tuple[int, ...] = ()
+    failures: tuple[dict, ...] = ()
 
 
 class AcquisitionManager:
@@ -132,6 +133,7 @@ class AcquisitionManager:
                 raise ValueError(f"el lote pendiente ({len(pending)}) supera la cuota restante del día "
                                  f"({max(0, self.daily_quota - used)})")
         acquired, skipped, failed = 0, duplicates, 0
+        failure_details = []
         for request in requests:
             request_id = f"{namespace}:{request.request_id}"
             if self.store.request_succeeded(request_id) and not refresh:
@@ -139,6 +141,7 @@ class AcquisitionManager:
                 continue
             request_attempts_before = int(getattr(self.provider, "http_requests_made", 0))
             request_status_before = len(getattr(self.provider, "http_status_codes", ()))
+            stage = "provider_request"
             try:
                 safe_request, response, alternatives = self.provider.fetch(request)
                 safe_request = dict(safe_request)
@@ -150,19 +153,49 @@ class AcquisitionManager:
                         getattr(self.provider, "http_status_codes", ())[request_status_before:]
                     ),
                 }
+                stage = "persistence"
                 self.store.save_success(request_id, safe_request, response, alternatives)
                 acquired += 1
             except Exception as exc:
-                # No registrar cuerpo de excepción ni cabeceras: podrían incluir datos sensibles.
-                self.store.save_failure(
+                attempts = (int(getattr(self.provider, "http_requests_made", 0))
+                            - request_attempts_before)
+                statuses = tuple(getattr(self.provider, "http_status_codes", ())[request_status_before:])
+                is_provider_diagnostic = all(hasattr(exc, attribute) for attribute in
+                                             ("category", "stage", "http_status_code"))
+                error_stage = getattr(exc, "stage", stage) if is_provider_diagnostic else stage
+                category = getattr(exc, "category", type(exc).__name__) if is_provider_diagnostic else (
+                    "persistence_error" if stage == "persistence" else "unexpected_error")
+                safe_message = str(exc) if is_provider_diagnostic else (
+                    "no se pudo guardar la respuesta validada" if stage == "persistence"
+                    else f"fallo inesperado durante la solicitud ({type(exc).__name__})")
+                secret = getattr(self.provider, "api_key", None)
+                if secret:
+                    safe_message = safe_message.replace(secret, "[REDACTED]")
+                status_code = getattr(exc, "http_status_code", None) if is_provider_diagnostic else None
+                if status_code is None and statuses:
+                    status_code = statuses[-1]
+                diagnostic = {
+                    "category": category, "message": safe_message,
+                    "http_status_code": status_code,
+                    "stage": error_stage,
+                    "http_request_counted": attempts > 0,
+                    "origin_id": request.origin.city_id,
+                    "destination_id": request.destination.city_id,
+                    "strategy": request.strategy,
+                    "extra_info": list(request.extra_info),
+                    "profile": getattr(self.provider, "profile", None),
+                    "endpoint": getattr(self.provider, "endpoint", None),
+                }
+                diagnostic_path = self.store.save_failure(
                     request_id, type(exc).__name__,
-                    http_requests=(int(getattr(self.provider, "http_requests_made", 0))
-                                   - request_attempts_before),
-                    http_status_codes=tuple(
-                        getattr(self.provider, "http_status_codes", ())[request_status_before:]
-                    ),
+                    http_requests=attempts, http_status_codes=statuses, diagnostic=diagnostic,
                 )
+                failure_details.append({"request_id": request.request_id,
+                                        **diagnostic, "http_requests": attempts,
+                                        "http_status_codes": statuses,
+                                        "diagnostic_file": diagnostic_path})
                 failed += 1
         return AcquisitionSummary(original_count, acquired, skipped, failed,
                                   int(getattr(self.provider, "http_requests_made", 0)) - attempts_before,
-                                  tuple(getattr(self.provider, "http_status_codes", ())[status_codes_before:]))
+                                  tuple(getattr(self.provider, "http_status_codes", ())[status_codes_before:]),
+                                  tuple(failure_details))

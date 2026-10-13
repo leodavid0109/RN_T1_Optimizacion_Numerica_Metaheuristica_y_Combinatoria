@@ -58,6 +58,22 @@ reintenta automáticamente; el presupuesto global y la pausa entre lotes deben
 fijarse en la ejecución controlada posterior. Los IDs de vías pueden orientar
 una consulta puntual, pero no identifican por sí solos una estación o un cobro.
 
+Los fallos se guardan en `data/processed/routes/enriched/diagnostics/` con ID
+de solicitud, categoría, etapa, mensaje seguro, estado HTTP, cantidad de
+intentos contabilizados y ruta del diagnóstico. Se distinguen errores DNS,
+conexión rechazada, timeout, HTTP 400, autenticación 401/403, cuota 429,
+servidor 5xx, JSON/ruta/extras inválidos y persistencia. No se registra el
+cuerpo HTTP crudo ni los encabezados; el mensaje se limita y se redacta contra
+la API key. Cada fallo genera un archivo diagnóstico independiente. Los
+reintentos pueden desactivarse explícitamente con `--max-retries 0`.
+
+No se cambia de parámetros ante un fallo de transporte, timeout, autenticación
+ni un HTTP 5xx. Solo si un HTTP 400 de ORS identifica expresamente `osmid` como
+no admitido, se puede probar manualmente, con un presupuesto nuevo de un HTTP,
+el conjunto reducido `--extra-info tollways,waycategory`. La documentación
+vigente lista `osmid` para `driving-car`, por lo que ese fallback no se aplica
+automáticamente.
+
 ## Interpretación y trabajo pendiente
 
 Una sección `tollways=1` es evidencia cartográfica según el grafo de ORS; no
