@@ -94,6 +94,10 @@ class RouteMatchCandidate:
 class OverpassError(RuntimeError):
     """Fallo de transporte o estructura de Overpass."""
 
+    def __init__(self, message: str, *, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+
 
 class OverpassClient:
     """Cliente acotado de Overpass; no divide una consulta regional automáticamente."""
@@ -129,7 +133,11 @@ class OverpassClient:
         try:
             with self.opener(request, timeout=self.timeout_seconds) as response:
                 payload = json.loads(response.read().decode("utf-8"))
-        except (HTTPError, URLError, TimeoutError, OSError, UnicodeError, json.JSONDecodeError) as exc:
+        except HTTPError as exc:
+            raise OverpassError(
+                f"Overpass respondió HTTP {exc.code}", status_code=exc.code
+            ) from exc
+        except (URLError, TimeoutError, OSError, UnicodeError, json.JSONDecodeError) as exc:
             raise OverpassError(f"falló la consulta Overpass: {type(exc).__name__}") from exc
         if not isinstance(payload, dict) or not isinstance(payload.get("elements"), list):
             raise OverpassError("respuesta Overpass inválida")

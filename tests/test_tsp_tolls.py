@@ -2,12 +2,13 @@
 
 import csv
 import json
+from urllib.error import HTTPError
 
 import pytest
 
 from src.tsp.alternatives import RouteAlternative, TollStatus
 from src.tsp.etl import (
-    BoundingBox, OverpassCatalogStore, OverpassClient, RouteTollSection, TollTariff, apply_toll_assessment,
+    BoundingBox, OverpassCatalogStore, OverpassClient, OverpassError, RouteTollSection, TollTariff, apply_toll_assessment,
     assess_route_tolls, import_official_tariffs_csv, load_infrastructure_catalog,
     match_infrastructure_to_route, match_route_alternatives_to_infrastructure,
     parse_overpass_response, save_infrastructure_catalog,
@@ -83,6 +84,15 @@ def test_overpass_client_posts_one_bounded_query_with_fake_transport():
     assert len(calls) == 1
     assert calls[0][0].method == "POST"
     assert {record.stable_id for record in records} == {"osm:node/101", "osm:way/202"}
+
+
+def test_overpass_client_preserves_http_status_for_rate_limit_handling():
+    def rate_limited_opener(request, timeout):
+        raise HTTPError(request.full_url, 429, "Too Many Requests", {}, None)
+
+    with pytest.raises(OverpassError, match="HTTP 429") as error:
+        OverpassClient(opener=rate_limited_opener).fetch_bbox(BoundingBox(39.9, -4.1, 40.1, -3.9))
+    assert error.value.status_code == 429
 
 
 def test_overpass_store_reuses_valid_cache_and_refreshes_only_explicitly(tmp_path):
