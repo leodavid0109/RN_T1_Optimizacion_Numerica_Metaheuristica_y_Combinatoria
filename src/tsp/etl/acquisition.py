@@ -22,6 +22,7 @@ class AcquisitionRequest:
     strategy: str = "fastest"
     request_alternatives: int = 0
     avoid_tolls: bool = False
+    extra_info: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if self.origin.city_id == self.destination.city_id:
@@ -30,6 +31,10 @@ class AcquisitionRequest:
             raise ValueError("strategy debe ser fastest, avoid_tolls o alternatives")
         if not 0 <= self.request_alternatives <= 3:
             raise ValueError("ORS permite solicitar como máximo tres alternativas")
+        extras = tuple(self.extra_info)
+        if len(extras) != len(set(extras)) or set(extras) - {"tollways", "osmid", "waycategory"}:
+            raise ValueError("extra_info debe contener valores únicos: tollways, osmid, waycategory")
+        object.__setattr__(self, "extra_info", tuple(sorted(extras)))
         for city in (self.origin, self.destination):
             if city.coordinate_status != "verificada" or city.latitude is None or city.longitude is None:
                 raise ValueError(f"coordenada no verificada para {city.city_id}")
@@ -47,6 +52,9 @@ class AcquisitionRequest:
             "request_alternatives": self.request_alternatives,
             "avoid_tolls": self.avoid_tolls,
         }
+        # Omitir la clave vacía conserva las huellas de las adquisiciones anteriores.
+        if self.extra_info:
+            canonical["extra_info"] = self.extra_info
         return sha256(json.dumps(canonical, sort_keys=True).encode()).hexdigest()[:20]
 
     def fastest_route_id(self, profile: str) -> str:

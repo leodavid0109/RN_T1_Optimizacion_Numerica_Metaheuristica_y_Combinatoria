@@ -15,6 +15,7 @@ from urllib.request import Request, urlopen
 
 from ..alternatives import RouteAlternative, TollStatus
 from .acquisition import AcquisitionRequest
+from .ors_extras import analyze_geojson_extras
 
 
 class ProviderError(RuntimeError):
@@ -64,7 +65,7 @@ class OpenRouteServiceProvider:
         endpoint_id = sha256(self.endpoint.encode()).hexdigest()[:10]
         return f"{self.provider_name}:{self.profile}:endpoint-{endpoint_id}"
 
-    def fetch(self, request: AcquisitionRequest) -> tuple[dict, tuple[RouteAlternative, ...]]:
+    def fetch(self, request: AcquisitionRequest) -> tuple[dict, dict, tuple[RouteAlternative, ...]]:
         if not self.api_key:
             raise ProviderError("falta ORS_API_KEY; no se realizó ninguna solicitud")
         coordinates = [
@@ -77,20 +78,31 @@ class OpenRouteServiceProvider:
             body["alternative_routes"] = {"target_count": request.request_alternatives}
         if request.avoid_tolls or request.strategy == "avoid_tolls":
             body["options"] = {"avoid_features": ["tollways"]}
+        if request.extra_info:
+            body["extra_info"] = list(request.extra_info)
         url = f"{self.endpoint}/{self.profile}/geojson"
         safe_request = {"method": "POST", "url": url, "body": body}
         raw = self._post(url, body)
+        if request.extra_info:
+            try:
+                analyze_geojson_extras(raw, required=request.extra_info)
+            except ValueError as exc:
+                raise ProviderError(f"respuesta ORS enriquecida incompleta: {exc}") from exc
         routes = parse_ors_geojson(
             raw,
             origin_id=request.origin.city_id,
             destination_id=request.destination.city_id,
             request_id=request.request_id,
             fastest_route_id=request.fastest_route_id(self.profile),
-            is_primary_fastest=(request.strategy == "fastest" and not request.avoid_tolls),
+            # Un snapshot enriquecido conserva la identidad de la rápida anterior,
+            # pero no la sustituye ni adopta su alternative_id.
+            is_primary_fastest=(request.strategy == "fastest" and not request.avoid_tolls
+                                and not request.extra_info),
             strategy=request.strategy,
             profile=self.profile,
             source=url,
             acquired_on=self.today(),
+            extra_info=request.extra_info,
         )
         return safe_request, raw, routes
 
@@ -199,6 +211,7 @@ def parse_ors_geojson(
     profile: str,
     source: str,
     acquired_on: str,
+    extra_info: tuple[str, ...] = (),
 ) -> tuple[RouteAlternative, ...]:
     """Normaliza GeoJSON ORS (m, s) y conserva que el peaje es desconocido."""
     features = response.get("features")
@@ -254,7 +267,8 @@ def parse_ors_geojson(
             acquired_on=acquired_on,
             network_data_version=str(graph_version) if graph_version is not None else None,
             road_references=road_references,
-            routing_parameters=(("preference", "fastest"), ("strategy", strategy)),
+            routing_parameters=(("preference", "fastest"), ("strategy", strategy))
+            + ((("extra_info", ",".join(extra_info)),) if extra_info else ()),
             geometry_lon_lat=geometry,
             limitations=(
                 "Duración calculada por el perfil, no medición de tráfico en tiempo real.",

@@ -26,6 +26,16 @@ OVERPASS_ENDPOINT = "https://overpass-api.de/api/interpreter"
 OVERPASS_SOURCE = "OpenStreetMap/Overpass API"
 
 
+def overpass_way_ids_query(osm_way_ids: Iterable[int]) -> str:
+    """Consulta acotada por IDs de vías, sin búsqueda espacial extensa."""
+    ids = tuple(osm_way_ids)
+    if not ids or len(ids) > 50 or any(type(value) is not int or value <= 0 for value in ids):
+        raise ValueError("se requieren entre 1 y 50 IDs OSM de vías positivos")
+    if len(ids) != len(set(ids)):
+        raise ValueError("los IDs OSM de vías no deben repetirse en un lote")
+    return f"[out:json][timeout:25];way(id:{','.join(map(str, sorted(ids)))});out body geom;"
+
+
 @dataclass(frozen=True)
 class BoundingBox:
     """Caja geográfica WGS84, en orden sur, oeste, norte, este."""
@@ -128,7 +138,13 @@ class OverpassClient:
 
     def fetch_bbox_payload(self, bbox: BoundingBox) -> dict:
         """Devuelve el JSON original de una única consulta acotada."""
-        query = bbox.overpass_query()
+        return self._fetch_query_payload(bbox.overpass_query())
+
+    def fetch_way_ids_payload(self, osm_way_ids: Iterable[int]) -> dict:
+        """Una solicitud explícita por hasta 50 IDs, sin reintentos implícitos."""
+        return self._fetch_query_payload(overpass_way_ids_query(osm_way_ids))
+
+    def _fetch_query_payload(self, query: str) -> dict:
         request = Request(
             self.endpoint,
             data=urlencode({"data": query}).encode("utf-8"),
@@ -202,6 +218,49 @@ class OverpassCatalogStore:
             "attribution": "© OpenStreetMap contributors", "license": "ODbL",
         }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         return records, True
+
+    def get_or_fetch_way_ids(
+        self, client: OverpassClient, osm_way_ids: Iterable[int],
+    ) -> tuple[dict, bool]:
+        """Caché por lote de IDs; 504 queda registrado para reanudar después.
+
+        La llamada explícita hace como máximo un HTTP. Conserva el JSON crudo,
+        incluso si la vía no lleva etiqueta de peaje. No declara cobertura.
+        """
+        osm_way_ids = tuple(osm_way_ids)
+        query = overpass_way_ids_query(osm_way_ids)
+        fingerprint = sha256(query.encode("utf-8")).hexdigest()[:20]
+        metadata_path = self.processed_dir / f"osm_ways_{fingerprint}.metadata.json"
+        if metadata_path.exists():
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            if metadata.get("status") == "acquired":
+                raw_path = self.raw_dir / metadata["raw_file"]
+                if raw_path.exists():
+                    return json.loads(raw_path.read_text(encoding="utf-8")), False
+        try:
+            payload = client.fetch_way_ids_payload(osm_way_ids)
+        except OverpassError as exc:
+            self.processed_dir.mkdir(parents=True, exist_ok=True)
+            metadata_path.write_text(json.dumps({
+                "schema_version": 1, "status": "error", "query": query,
+                "query_sha256": sha256(query.encode()).hexdigest(),
+                "http_status": exc.status_code,
+                "failed_at": datetime.now(timezone.utc).isoformat(),
+            }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            raise
+        acquired_at = datetime.now(timezone.utc).isoformat()
+        payload_digest = sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:12]
+        raw_path = self.raw_dir / f"osm_ways_{fingerprint}_{payload_digest}.json"
+        self.raw_dir.mkdir(parents=True, exist_ok=True)
+        self.processed_dir.mkdir(parents=True, exist_ok=True)
+        raw_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        metadata_path.write_text(json.dumps({
+            "schema_version": 1, "status": "acquired", "source": OVERPASS_SOURCE,
+            "query": query, "query_sha256": sha256(query.encode()).hexdigest(),
+            "acquired_at": acquired_at, "raw_file": raw_path.name,
+            "attribution": "© OpenStreetMap contributors", "license": "ODbL",
+        }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        return payload, True
 
 
 def parse_overpass_response(payload: dict, *, acquired_at: str | None = None) -> tuple[TollInfrastructure, ...]:
