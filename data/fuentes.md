@@ -1,5 +1,11 @@
 # Fuentes de datos del TSP
 
+## Migración del endpoint ORS Directions (2026-10-13)
+
+- HeiGIT anunció la migración desde `api.openrouteservice.org` hacia `api.heigit.org`: https://ask.openrouteservice.org/t/deprecating-api-openrouteservice-org-in-favour-of-api-heigit-org/7912 . El endpoint configurado para Directions es `https://api.heigit.org/openrouteservice/v2/directions`; Matrix conserva `https://api.heigit.org/openrouteservice/v2/matrix`.
+- La referencia de [Directions Extra Info](https://giscience.github.io/openrouteservice/api-reference/endpoints/directions/extra-info/) se consultó el 2026-10-13. Su tabla actual marca `tollways`, `waycategory` y `osmid` disponibles para `driving-car`, con respuesta de OSM IDs bajo `osmId`. El primer intento controlado, por decisión de alcance, solicita solo `tollways` y `waycategory`; disponibilidad documentada no sustituye la validación en una respuesta real. Los atributos cartográficos no proporcionan importes tarifarios.
+- La petición anterior Madrid–Toledo terminó en timeout de transporte después de un intento contabilizado, sin código HTTP. No se infiere si el backend alcanzó a procesarla. No se realizó una nueva solicitud durante esta corrección.
+
 ## Consulta documental Matrix ORS (2026-10-12)
 
 - Documentación del endpoint Matrix: https://giscience.github.io/openrouteservice/api-reference/endpoints/matrix/ . Define locations como coordenadas, permite fuentes/destinos como subconjuntos de índices, reporta distancias en m/km/millas y duraciones siempre en segundos. Si se omiten fuentes/destinos, ambos usan todas las ubicaciones; la diagonal de una ubicación consigo misma es cero.

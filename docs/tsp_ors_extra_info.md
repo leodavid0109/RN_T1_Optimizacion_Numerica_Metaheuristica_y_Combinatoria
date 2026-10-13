@@ -1,7 +1,10 @@
 # Evidencia vial ORS para tres rutas piloto
 
 El cliente Directions existente admite `--extra-info tollways,osmid,waycategory`
-con el perfil `driving-car`. La petición sigue usando `preference=fastest`,
+con el perfil `driving-car`. La primera adquisición real controlada solicita solo
+`tollways,waycategory`; se aplaza `osmid` hasta comprobar su disponibilidad efectiva
+en el servicio público para esta configuración. El parser sigue aceptando `osmId`
+si aparece en una respuesta válida. La petición sigue usando `preference=fastest`,
 geometría e instrucciones. Según la [referencia oficial de ORS](https://giscience.github.io/openrouteservice/api-reference/endpoints/directions/extra-info/),
 las secciones de `extras.*.values` contienen índices inicial y final **de
 vértices** de la geometría. Dos secciones pueden compartir un vértice, sin
@@ -9,11 +12,11 @@ compartir una arista. `osmid` puede venir como `osmId` en la respuesta. La
 distancia de `tollways.summary` está en metros y se normaliza a km; si el
 resumen falta, la distancia marcada como peaje queda desconocida.
 
-La tabla de disponibilidad vigente de ORS marca `waycategory`, `tollways` y
-`osmid` para `driving-car`; `osmid` debe pedirse y la respuesta usa la clave
-`osmId`. Esto confirma disponibilidad documentada para el servicio alojado,
-pero aún falta comprobarla en respuestas reales de estas rutas. Si no viene un
-campo pedido, el ETL rechaza esa adquisición y conserva el estado anterior.
+La tabla vigente consultada el 2026-10-13 lista `waycategory`, `tollways` y
+`osmid` para `driving-car`; `osmid` se conserva como capacidad opcional, pero no
+se exige ni se solicita en la primera adquisición controlada. La disponibilidad
+documentada aún debe validarse con una respuesta real de la cuenta. Si falta un
+campo que sí fue pedido, el ETL rechaza esa adquisición y conserva el estado anterior.
 `waycategory` es una máscara de bits: `3 = 1 | 2` significa Highway y
 Tollways. El analizador descompone los bits conocidos y conserva banderas
 desconocidas.
@@ -25,8 +28,8 @@ para revisar el plan. Las siguientes líneas sí harían las peticiones cuando
 el usuario decida ejecutarlas; Codex no las ejecutó:
 
 ```powershell
-.\.venv\Scripts\python.exe -m experiments.acquire_tsp_routes --pairs madrid:toledo --strategy fastest --extra-info tollways,osmid,waycategory --max-requests 1 --max-http-requests 1 --max-retries 0 --execute
-.\.venv\Scripts\python.exe -m experiments.acquire_tsp_routes --pairs bizkaia:zaragoza,zaragoza:bizkaia --strategy fastest --extra-info tollways,osmid,waycategory --max-requests 2 --max-http-requests 2 --max-retries 0 --execute
+.\.venv\Scripts\python.exe -m experiments.acquire_tsp_routes --pairs madrid:toledo --strategy fastest --extra-info tollways,waycategory --max-requests 1 --max-http-requests 1 --max-retries 0 --execute
+.\.venv\Scripts\python.exe -m experiments.acquire_tsp_routes --pairs bizkaia:zaragoza,zaragoza:bizkaia --strategy fastest --extra-info tollways,waycategory --max-requests 2 --max-http-requests 2 --max-retries 0 --execute
 ```
 
 El presupuesto conjunto es de **tres intentos HTTP**, sin reintentos. Antes

@@ -15,7 +15,13 @@ El catálogo crudo no altera `RouteAlternative`, `AlternativeTSPProblem`, `TSPPr
 
 ## Reproducibilidad y credenciales
 
-La clave de ORS se entrega solo mediante la variable de entorno `ORS_API_KEY`. El cliente nunca la agrega al manifiesto, a la URL ni al JSON guardado. El archivo `configs/tsp_etl.yaml` contiene parámetros no secretos que consumen los tres comandos ETL, incluida la tasa de consulta y un límite orientativo del plan Standard que debe cotejarse antes de cada adquisición; los flags pueden ajustarlos.
+La clave de ORS se entrega solo mediante la variable de entorno `ORS_API_KEY`. El cliente nunca la agrega al manifiesto, a la URL ni al JSON guardado. El endpoint Directions vigente es `https://api.heigit.org/openrouteservice/v2/directions`; Matrix utiliza `https://api.heigit.org/openrouteservice/v2/matrix`. El antiguo host `api.openrouteservice.org` se rechaza explícitamente para evitar que una configuración obsoleta anule silenciosamente el endpoint actual.
+
+Para ambos endpoints, la precedencia es variable de entorno (`ORS_DIRECTIONS_ENDPOINT` o `ORS_MATRIX_ENDPOINT`), YAML y luego valor predeterminado del cliente. Las variables solo deben contener URLs sin credenciales. El modo de planificación imprime el endpoint base y el URL efectivo de Directions, pero no la clave. En la adquisición inicial enriquecida se solicitan `tollways,waycategory`; el parser conserva compatibilidad con `extras.osmId` si una respuesta válida lo incluye, sin requerirlo para esta petición. Si falta un atributo solicitado, la adquisición se rechaza y el peaje monetario permanece desconocido.
+
+El timeout configurado es de 30 segundos. Un timeout de transporte no implica que el proveedor no haya procesado la solicitud; por eso no se reintenta automáticamente en esta prueba. El diagnóstico registra endpoint efectivo, timeout, categoría, etapa y presupuesto consumido, pero nunca encabezados ni credenciales. Antes de repetir manualmente un timeout se debe considerar posible procesamiento remoto del intento anterior.
+
+El archivo `configs/tsp_etl.yaml` contiene parámetros no secretos que consumen los comandos ETL, incluida la tasa de consulta y un límite orientativo del plan Standard que debe cotejarse antes de cada adquisición; los flags pueden ajustarlos.
 
 En la revisión del 2026-10-12 la variable estaba **ausente**. Para cargarla solo en la sesión PowerShell actual, sin imprimirla en pantalla ni escribirla en el repositorio:
 
@@ -154,7 +160,7 @@ Arcos canónicos: `madrid:toledo`, `toledo:madrid`, `bizkaia:zaragoza`, `zaragoz
 
 Plan de solicitud:
 
-1. Seis llamadas `POST https://api.openrouteservice.org/v2/directions/driving-car/geojson`, una por arco, con las coordenadas del catálogo IGN en orden `[lon, lat]`, geometry y preferencia normal/rápida.
+1. Seis llamadas `POST https://api.heigit.org/openrouteservice/v2/directions/driving-car/geojson`, una por arco, con las coordenadas del catálogo IGN en orden `[lon, lat]`, geometry y preferencia normal/rápida.
 2. Opcionalmente, seis llamadas adicionales al mismo endpoint para los mismos arcos con `options: {"avoid_features":["tollways"]}`. Esto solicita una candidata cartográficamente encaminada evitando clases marcadas como toll; no certifica tarifa cero.
 3. No se piden `alternative_routes` en este piloto por las limitaciones de 100 km y porque la API no enumera exhaustivamente las rutas.
 
