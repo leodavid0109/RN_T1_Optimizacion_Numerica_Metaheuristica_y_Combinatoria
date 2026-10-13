@@ -35,7 +35,10 @@ metodos:
   pso:
     rosenbrock: {n_particles: 30, c1: 0.8, c2: 0.4, w: 0.1}
     rastrigin: {n_particles: 30, c1: 0.8, c2: 0.4, w: 0.1}
-
+    
+  de:
+    rosenbrock: {population_size: 30, F: 0.5, CR: 0.9}
+    rastrigin: {population_size: 30, F: 0.5, CR: 0.9}
   # de: pendiente de implementar
 
 salidas:

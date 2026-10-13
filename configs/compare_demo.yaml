@@ -37,6 +37,11 @@ metodos:
       c1: 0.8
       c2: 0.4
       w: 0.1
+    
+  de:
+    rosenbrock: {population_size: 30, F: 0.5, CR: 0.9}
+    rastrigin: {population_size: 30, F: 0.5, CR: 0.9}
+
 
 salidas:                   # carpetas propias: la demo no pisa los resultados completos
   resultados: results/compare_demo
