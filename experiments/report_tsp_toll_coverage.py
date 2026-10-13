@@ -57,6 +57,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--raw-route-root", type=Path, default=Path("data/raw/routes"))
     parser.add_argument("--matches-csv", type=Path, default=Path("data/processed/tolls/overpass_route_matches.csv"))
     parser.add_argument("--output-dir", type=Path, default=Path("data/processed/tolls"))
+    parser.add_argument("--economic-arcs", type=Path,
+                        default=Path("data/processed/tolls/economic/economic_arcs.csv"))
     args = parser.parse_args(argv)
     report = generate_report(
         dataset_dir=args.dataset_dir,
@@ -66,6 +68,43 @@ def main(argv: list[str] | None = None) -> int:
     )
     args.output_dir.mkdir(parents=True, exist_ok=True)
     payload = coverage_report_as_dict(report)
+    if args.economic_arcs.exists():
+        with args.economic_arcs.open(encoding="utf-8", newline="") as stream:
+            economic_rows = list(csv.DictReader(stream))
+        by_pair = {(row["origin_id"], row["destination_id"]): row for row in economic_rows}
+        if len(economic_rows) != report.expected_directed_arcs or len(by_pair) != len(economic_rows):
+            raise ValueError("el reporte económico no cubre una vez cada arco dirigido")
+        if set(by_pair) != {(r.origin_id, r.destination_id) for r in report.rows}:
+            raise ValueError("el reporte económico tiene arcos ajenos al catálogo")
+        statuses = {status: sum(row["toll_status"] == status for row in economic_rows)
+                    for status in ("UNKNOWN", "PARTIAL", "VERIFIED_ZERO", "VERIFIED_AMOUNT")}
+        if sum(statuses.values()) != len(economic_rows):
+            raise ValueError("estado económico desconocido")
+        payload["coverage"].update({
+            "arcs_with_verified_sections": sum(bool(row["verified_section_eur"])
+                                               for row in economic_rows),
+            "arcs_with_partial_tariff": statuses["PARTIAL"],
+            "arcs_with_verified_total_toll": statuses["VERIFIED_ZERO"] + statuses["VERIFIED_AMOUNT"],
+            "arcs_with_verified_zero_toll": statuses["VERIFIED_ZERO"],
+            "arcs_with_unknown_toll": statuses["UNKNOWN"] + statuses["PARTIAL"],
+            "arcs_with_complete_economic_cost": sum(bool(row["cost_total_eur"]) for row in economic_rows),
+        })
+        for row in payload["rows"]:
+            economic = by_pair[(row["origin_id"], row["destination_id"])]
+            row["toll_status"] = economic["toll_status"]
+            row["pending_reason"] = economic["reason"]
+        pending = [row for row in payload["rows"] if row["toll_status"] in {"UNKNOWN", "PARTIAL"}]
+        pending.sort(key=lambda row: (
+            0 if row["toll_status"] == "PARTIAL" else 1,
+            -row["infrastructure_candidate_count"], -row["route_geometry_count"],
+            row["origin_id"], row["destination_id"],
+        ))
+        pending_path = args.output_dir / "toll_pending_priority.csv"
+        args.output_dir.mkdir(parents=True, exist_ok=True)
+        with pending_path.open("w", encoding="utf-8", newline="") as stream:
+            writer = csv.DictWriter(stream, fieldnames=list(pending[0]) if pending else list(payload["rows"][0]))
+            writer.writeheader()
+            writer.writerows(pending)
     json_path = args.output_dir / "toll_coverage_national.json"
     csv_path = args.output_dir / "toll_coverage_arcs.csv"
     json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
