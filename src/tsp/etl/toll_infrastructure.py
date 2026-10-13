@@ -72,6 +72,7 @@ class TollInfrastructure:
     tags: tuple[tuple[str, str], ...]
     source: str
     acquired_at: str
+    geometry_parts_lon_lat: tuple[tuple[tuple[float, float], ...], ...] | None = None
 
     @property
     def stable_id(self) -> str:
@@ -89,6 +90,7 @@ class RouteMatchCandidate:
     confidence: str
     evidence: tuple[str, ...]
     direction_evidence: str
+    aligned_route_length_m: float = 0.0
 
 
 class OverpassError(RuntimeError):
@@ -216,9 +218,10 @@ def parse_overpass_response(payload: dict, *, acquired_at: str | None = None) ->
         kind = _classify_tags(tags)
         if kind is None:
             continue
-        geometry = _element_geometry(element)
-        if not geometry:
+        geometry_parts = _element_geometry_parts(element)
+        if not geometry_parts:
             continue
+        geometry = geometry_parts[0]
         canonical_tags = tuple(sorted((str(key), str(value)) for key, value in tags.items()))
         result = TollInfrastructure(
             osm_type=osm_type,
@@ -232,6 +235,7 @@ def parse_overpass_response(payload: dict, *, acquired_at: str | None = None) ->
             tags=canonical_tags,
             source=OVERPASS_SOURCE,
             acquired_at=acquired,
+            geometry_parts_lon_lat=geometry_parts,
         )
         results[(osm_type, osm_id)] = result
     return tuple(results[key] for key in sorted(results))
@@ -245,8 +249,11 @@ def save_infrastructure_catalog(path: str | Path, records: Iterable[TollInfrastr
         if record.stable_id in seen:
             raise ValueError(f"infraestructura duplicada: {record.stable_id}")
         seen.add(record.stable_id)
-        geometry_type = "Point" if len(record.geometry_lon_lat) == 1 else "LineString"
-        coords = record.geometry_lon_lat[0] if geometry_type == "Point" else record.geometry_lon_lat
+        parts = record.geometry_parts_lon_lat or (record.geometry_lon_lat,)
+        geometry_type = ("Point" if len(record.geometry_lon_lat) == 1 and len(parts) == 1 else
+                         "LineString" if len(parts) == 1 else "MultiLineString")
+        coords = (record.geometry_lon_lat[0] if geometry_type == "Point" else
+                  parts[0] if geometry_type == "LineString" else parts)
         features.append({
             "type": "Feature",
             "id": record.stable_id,
@@ -276,15 +283,24 @@ def load_infrastructure_catalog(path: str | Path) -> tuple[TollInfrastructure, .
         geometry_type, coordinates = geometry.get("type"), geometry.get("coordinates")
         if geometry_type == "Point":
             points = (coordinates,)
+            parts = (points,)
         elif geometry_type == "LineString":
             points = tuple(coordinates or ())
+            parts = (points,)
+        elif geometry_type == "MultiLineString":
+            parts = tuple(tuple((float(point[0]), float(point[1])) for point in line)
+                          for line in (coordinates or ()) if line)
+            points = parts[0] if parts else ()
         else:
             raise ValueError(f"geometría de infraestructura no soportada: {geometry_type}")
         osm_type, osm_id = properties.get("osm_type"), properties.get("osm_id")
         if feature.get("id") != f"osm:{osm_type}/{osm_id}":
             raise ValueError("el ID GeoJSON no coincide con el ID OSM")
+        normalized_parts = tuple(tuple((float(point[0]), float(point[1])) for point in line)
+                                 for line in parts)
         normalized = tuple((float(point[0]), float(point[1])) for point in points)
-        if not normalized or any(not _valid_lon_lat(point) for point in normalized):
+        if (not normalized_parts or any(not line for line in normalized_parts)
+                or any(not _valid_lon_lat(point) for line in normalized_parts for point in line)):
             raise ValueError("geometría vacía o fuera de rango")
         tags = properties.get("tags", {})
         if not isinstance(tags, dict):
@@ -293,7 +309,7 @@ def load_infrastructure_catalog(path: str | Path) -> tuple[TollInfrastructure, .
             osm_type, int(osm_id), properties["infrastructure_type"], normalized,
             properties.get("name"), properties.get("operator"), properties.get("road_reference"),
             properties.get("direction"), tuple(sorted((str(k), str(v)) for k, v in tags.items())),
-            properties["source"], properties["acquired_at"],
+            properties["source"], properties["acquired_at"], normalized_parts,
         ))
     ids = [record.stable_id for record in records]
     if len(ids) != len(set(ids)):
@@ -324,8 +340,12 @@ def match_infrastructure_to_route(
         raise ValueError("la geometría de ruta no puede tener longitud cero")
     matches = []
     for feature in infrastructure:
-        best = _nearest_geometry_pair(route, lengths, total_length, feature.geometry_lon_lat)
-        distance, fraction = best
+        parts = feature.geometry_parts_lon_lat or (feature.geometry_lon_lat,)
+        distance, fraction, aligned_length = _nearest_geometry_parts(
+            route, lengths, total_length, tuple(part for part in parts if part), radius_m=radius_m
+        )
+        if not math.isfinite(distance):
+            continue
         if distance <= radius_m:
             tags = dict(feature.tags)
             direction = "sin evidencia direccional; validar calzada y sentido"
@@ -333,9 +353,17 @@ def match_infrastructure_to_route(
                 direction = f"etiqueta OSM direction/oneway={feature.direction}; no prueba el sentido de cobro"
             elif tags.get("oneway"):
                 direction = f"etiqueta OSM oneway={tags['oneway']}; no prueba el sentido de cobro"
+            confidence = "candidato_proximidad"
+            evidence = [f"distancia_geometrica<={radius_m:g}m"]
+            # Una vía OSM alineada durante un tramo apreciable aporta más que
+            # un punto cercano, pero sigue sin demostrar acceso, sentido ni cobro.
+            if (feature.infrastructure_type == "toll_road" and aligned_length >= 250.0
+                    and tags.get("toll") == "yes"):
+                confidence = "coincidencia_vial_probable"
+                evidence.append(f"alineamiento_geometrico_aprox_{aligned_length:.0f}m")
             matches.append(RouteMatchCandidate(
                 feature.stable_id, route_id, distance, fraction,
-                "candidato_proximidad", (f"distancia_geometrica<={radius_m:g}m",), direction,
+                confidence, tuple(evidence), direction, aligned_length,
             ))
     return tuple(sorted(matches, key=lambda item: (item.route_fraction, item.infrastructure_id)))
 
@@ -380,15 +408,36 @@ def _optional_tag(tags: dict, key: str) -> str | None:
 
 
 def _element_geometry(element: dict) -> tuple[tuple[float, float], ...]:
+    """Compatibilidad: devuelve la primera línea de la geometría del elemento."""
+    parts = _element_geometry_parts(element)
+    return parts[0] if parts else ()
+
+
+def _element_geometry_parts(element: dict) -> tuple[tuple[tuple[float, float], ...], ...]:
+    """Lee puntos, líneas y las líneas miembro de una relación sin unir huecos."""
     if "lon" in element and "lat" in element:
-        return ((float(element["lon"]), float(element["lat"])),)
+        return (((float(element["lon"]), float(element["lat"])),),)
     points = element.get("geometry")
     if not isinstance(points, list):
         center = element.get("center")
         if isinstance(center, dict) and "lon" in center and "lat" in center:
             points = [center]
         else:
-            return ()
+            members = element.get("members", [])
+            lines = []
+            for member in members if isinstance(members, list) else ():
+                member_geometry = member.get("geometry") if isinstance(member, dict) else None
+                line = _normalize_overpass_points(member_geometry)
+                if line:
+                    lines.append(line)
+            return tuple(lines)
+    line = _normalize_overpass_points(points)
+    return (line,) if line else ()
+
+
+def _normalize_overpass_points(points) -> tuple[tuple[float, float], ...]:
+    if not isinstance(points, list):
+        return ()
     result = []
     for point in points:
         if not isinstance(point, dict) or "lon" not in point or "lat" not in point:
@@ -414,29 +463,94 @@ def _distance_m(a: tuple[float, float], b: tuple[float, float]) -> float:
 
 def _nearest_geometry_pair(
     route: tuple[tuple[float, float], ...], route_lengths: list[float], route_total: float,
-    feature: tuple[tuple[float, float], ...],
-) -> tuple[float, float]:
-    """Mínima distancia polilínea-polilínea y posición en la ruta, en metros."""
-    lat0 = math.radians(sum(point[1] for point in (*route, *feature)) / (len(route) + len(feature)))
+    feature: tuple[tuple[float, float], ...], *, radius_m: float,
+) -> tuple[float, float, float]:
+    return _nearest_geometry_parts(route, route_lengths, route_total, (feature,), radius_m=radius_m)
+
+
+def _nearest_geometry_parts(
+    route: tuple[tuple[float, float], ...], route_lengths: list[float], route_total: float,
+    feature_parts: tuple[tuple[tuple[float, float], ...], ...], *, radius_m: float,
+) -> tuple[float, float, float]:
+    """Distancia mínima y alineamiento aproximado usando índice espacial local."""
+    feature_points = tuple(point for part in feature_parts for point in part)
+    if not feature_points:
+        return math.inf, 0.0, 0.0
+    lat0 = math.radians(sum(point[1] for point in (*route, *feature_points)) / (len(route) + len(feature_points)))
     scale_x, scale_y = 6_371_000 * math.cos(lat0), 6_371_000
 
     def project(point: tuple[float, float]) -> tuple[float, float]:
         return math.radians(point[0]) * scale_x, math.radians(point[1]) * scale_y
 
-    route_xy, feature_xy = tuple(map(project, route)), tuple(map(project, feature))
+    route_xy = tuple(map(project, route))
     route_segments = list(zip(route_xy, route_xy[1:])) or [(route_xy[0], route_xy[0])]
-    feature_segments = list(zip(feature_xy, feature_xy[1:])) or [(feature_xy[0], feature_xy[0])]
-    best: tuple[float, float] | None = None
-    route_offset = 0.0
+    feature_segments = []
+    for part in feature_parts:
+        feature_xy = tuple(map(project, part))
+        feature_segments.extend(list(zip(feature_xy, feature_xy[1:])) or [(feature_xy[0], feature_xy[0])])
+    # Una cuadrícula uniforme reduce las comparaciones de geometrías largas.
+    # Se indexan cajas de segmentos, no centroides, así que no se pierden cruces.
+    cell_size = max(50.0, radius_m * 2.0)
+    route_cells: dict[tuple[int, int], list[int]] = {}
+    route_boxes = []
     for index, (a, b) in enumerate(route_segments):
-        for c, d in feature_segments:
+        box = (min(a[0], b[0]), min(a[1], b[1]), max(a[0], b[0]), max(a[1], b[1]))
+        route_boxes.append(box)
+        for cell in _cells_for_box(box, cell_size):
+            route_cells.setdefault(cell, []).append(index)
+
+    best_distance = math.inf
+    best_fraction = 0.0
+    aligned_segments: set[int] = set()
+    route_offsets = []
+    offset = 0.0
+    for length in route_lengths:
+        route_offsets.append(offset)
+        offset += length
+    for c, d in feature_segments:
+        query_box = (min(c[0], d[0]) - radius_m, min(c[1], d[1]) - radius_m,
+                     max(c[0], d[0]) + radius_m, max(c[1], d[1]) + radius_m)
+        candidate_indices = {idx for cell in _cells_for_box(query_box, cell_size)
+                             for idx in route_cells.get(cell, ())}
+        for index in candidate_indices:
+            a, b = route_segments[index]
+            box = route_boxes[index]
+            if (box[2] < query_box[0] or query_box[2] < box[0]
+                    or box[3] < query_box[1] or query_box[3] < box[1]):
+                continue
             distance, route_t = _segment_pair_distance(a, b, c, d)
-            fraction = (route_offset + route_t * route_lengths[index]) / route_total
-            if best is None or distance < best[0]:
-                best = distance, fraction
-        route_offset += route_lengths[index]
-    assert best is not None
-    return best
+            fraction = (route_offsets[index] + route_t * route_lengths[index]) / route_total
+            if distance < best_distance:
+                best_distance, best_fraction = distance, fraction
+            if (distance <= min(10.0, radius_m)
+                    and _segments_are_parallel(a, b, c, d)):
+                aligned_segments.add(index)
+    if not math.isfinite(best_distance):
+        # No segment boxes intersected the radius-expanded feature geometry.
+        return math.inf, 0.0, 0.0
+    aligned_length = sum(route_lengths[index] for index in aligned_segments)
+    return best_distance, best_fraction, aligned_length
+
+
+def _cells_for_box(box: tuple[float, float, float, float], cell_size: float):
+    """Itera celdas de la cuadrícula que intersecan una caja proyectada en metros."""
+    x0, y0, x1, y1 = box
+    ix0, ix1 = math.floor(x0 / cell_size), math.floor(x1 / cell_size)
+    iy0, iy1 = math.floor(y0 / cell_size), math.floor(y1 / cell_size)
+    for ix in range(ix0, ix1 + 1):
+        for iy in range(iy0, iy1 + 1):
+            yield ix, iy
+
+
+def _segments_are_parallel(a, b, c, d, *, maximum_angle_degrees: float = 20.0) -> bool:
+    """Evita contar un cruce puntual como longitud de vía alineada."""
+    vx, vy = b[0] - a[0], b[1] - a[1]
+    wx, wy = d[0] - c[0], d[1] - c[1]
+    denominator = math.hypot(vx, vy) * math.hypot(wx, wy)
+    if denominator <= 1e-9:
+        return False
+    cosine = abs((vx * wx + vy * wy) / denominator)
+    return cosine >= math.cos(math.radians(maximum_angle_degrees))
 
 
 def _segment_pair_distance(a, b, c, d) -> tuple[float, float]:

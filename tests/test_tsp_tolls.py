@@ -149,7 +149,10 @@ def test_route_matching_is_only_candidate_and_preserves_route_order():
     route = ((-4.0, 40.0), (-3.99, 40.0))
     matches = match_infrastructure_to_route("route-xy", route, features, radius_m=30)
     assert {match.infrastructure_id for match in matches} == {"osm:node/101", "osm:way/202"}
-    assert all(match.confidence == "candidato_proximidad" for match in matches)
+    by_id = {match.infrastructure_id: match for match in matches}
+    assert by_id["osm:node/101"].confidence == "candidato_proximidad"
+    assert by_id["osm:way/202"].confidence == "coincidencia_vial_probable"
+    assert by_id["osm:way/202"].aligned_route_length_m > 250
     assert matches[0].route_fraction <= matches[1].route_fraction
     assert "no prueba el sentido de cobro" in matches[0].direction_evidence
 
