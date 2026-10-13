@@ -155,3 +155,58 @@ el cargador verifica todo offline. Combustible: se usa el boletín de la Comisi�
 publicado el 2026-10-08 y consultado el 2026-10-12; la fecha efectiva de descarga
 del archivo no quedó registrada y se conserva como desconocida. El paquete no
 contiene peajes ni una matriz de costo económico total.
+
+### Tarifas oficiales y alcance nacional consultados (2026-10-13)
+
+La página del Punto de Acceso General señala los principales corredores de
+peaje para 2026 y advierte que los importes pueden depender de vehículo,
+distancia, horario y forma de pago. Su subsección “Autopistas con peaje” aún
+identifica expresamente datos de 2024; no se utiliza esa lista como inventario
+exhaustivo de 2026. El CSV `data/reference/toll_roads_2026.csv` es una lista
+prioritaria de corredores citados por documentos oficiales, con la granularidad
+y vigencia pendientes marcadas como tales.
+
+La tabla oficial AP-68 de Autopistas/AVASA fue consultada en el PDF de tarifas
+2026. Para ligeros muestra 39,90 EUR para las estaciones nominales Bilbao ↔
+Zaragoza, vigente desde el 1 de enero de 2026 e IVA incluido. Los dos registros
+transcritos localmente están en `data/processed/tolls/ap68_2026_ligeros.csv`,
+que permanece excluido de Git. No se conservó una copia PDF local ni se publica
+la transcripción hasta confirmar condiciones de redistribución. Se conoce la
+URL y la página 1; la fuente en línea no da una fecha inequívoca de publicación,
+por lo que `published_on` queda vacío y no inventado. La fecha de consulta
+efectiva registrada es 2026-10-13.
+
+El BOE-A-2026-19039 fecha el final de la concesión AVASA para el 2026-11-10;
+el caso AP-68 se limita al escenario anterior a esa fecha y no se extrapola al
+régimen posterior. Las geometrías ORS locales muestran AP-68 en las referencias
+de vía y coincidencia lineal extensa con la relación OSM, pero el inventario
+solo aporta estaciones de Alagón próximas a la ruta. Las estaciones exactas de
+entrada/salida de la ruta Bilbao–Zaragoza no están verificadas. Por tanto, los
+39,90 EUR se conservan como tarifa oficial del par de estaciones nominal, no
+como costo confirmado de las geometrías ORS; el peaje de esas rutas sigue
+desconocido.
+
+Fuentes oficiales revisadas el 2026-10-13:
+
+- Punto de Acceso General, “Peajes y Viñetas” (página indica actualización
+  2026-03-19): https://administracion.gob.es/tu-espacio-europeo/derechos-obligaciones/ciudadanos/vehiculos/normas-trafico-viales/peajes-vinetas
+- Tarifas Autopistas: https://www.autopistas.com/tarifas-y-descuentos/tarifas/
+- Tarifario AP-68 2026: https://www.autopistas.com/wp-content/uploads/2025/12/26_003-Avasa-AP68-Bilbao_Zaragoza-T26.pdf
+- Marco tarifario SEITT: https://www.boe.es/eli/es/res/2024/12/06/%281%29
+- Modificación de tarifas/red SEITT, BOE-A-2025-25961:
+  https://www.boe.es/eli/es/res/2025/12/10/%282%29/dof/spa/pdf
+- Adenda SEITT sobre Circunvalación de Alicante, BOE-A-2026-2970:
+  https://www.boe.es/boe/dias/2026/02/09/pdfs/BOE-A-2026-2970.pdf
+- Modificación SEITT que establece tarifa de 0 EUR para Circunvalación de Alicante,
+  vigente desde su publicación el 2025-12-18 (BOE-A-2025-25961):
+  https://www.boe.es/eli/es/res/2025/12/10/%282%29/dof/spa/pdf
+- Real Decreto 730/2026, medidas AP-68 y fin de concesión el 2026-11-10:
+  https://www.boe.es/diario_boe/txt.php?id=BOE-A-2026-19039
+- Tarifas oficiales catalanas 2026 para C-16/C-32 (incluye franjas, categorías y condiciones de descuento):
+  https://territori.gencat.cat/ca/03_infraestructures_i_mobilitat/carreteres/peatges-tarifes-descomptes/tarifes-peatges/index.html
+- Inventario de tramos con peaje de Bizkaia (AP-8 Galdakao–Ermua, Variante Sur Metropolitana y túneles de Artxanda):
+  https://www.bizkaia.eus/es/tema-detalle/-/edukia/dt/6320
+- Presupuesto oficial de Álava 2026, tarifas de AP-1 por tramos:
+  https://www.araba.eus/Presupuestos/2026/TOM-2026_PTO-50-02.html
+- Decreto gallego 125/2025, congelación 2026 y bonificaciones AG-55/AG-57:
+  https://www.xunta.gal/dog/Publicados/2025/20251231/AnuncioG0765-291225-0001_gl.html

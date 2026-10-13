@@ -17,11 +17,13 @@ from typing import Iterable
 from ..alternatives import RouteAlternative, TollStatus
 
 
-TARIFF_FIELDS = (
+TARIFF_REQUIRED_FIELDS = (
     "tariff_id", "operator", "road", "entry_station", "exit_station", "direction",
     "vehicle_category", "amount_eur", "valid_from", "valid_through", "source_url",
     "published_on", "acquired_on", "payment_conditions", "verification_status", "notes",
 )
+TARIFF_OPTIONAL_FIELDS = ("payment_method", "time_rule", "source_document", "source_page", "currency")
+TARIFF_FIELDS = TARIFF_REQUIRED_FIELDS + TARIFF_OPTIONAL_FIELDS
 
 
 @dataclass(frozen=True)
@@ -42,6 +44,11 @@ class TollTariff:
     payment_conditions: str
     verification_status: str
     notes: str = ""
+    payment_method: str = "unknown"
+    time_rule: str = ""
+    source_document: str = ""
+    source_page: str = ""
+    currency: str = "EUR"
 
     def __post_init__(self) -> None:
         for field in ("tariff_id", "operator", "road", "entry_station", "exit_station", "direction",
@@ -52,10 +59,16 @@ class TollTariff:
         if not math.isfinite(amount) or amount < 0:
             raise ValueError("amount_eur debe ser finito y no negativo")
         object.__setattr__(self, "amount_eur", amount)
-        for field in ("valid_from", "valid_through", "published_on", "acquired_on"):
+        for field in ("valid_from", "valid_through", "acquired_on"):
             date.fromisoformat(getattr(self, field))
+        if self.published_on:
+            date.fromisoformat(self.published_on)
         if self.valid_from > self.valid_through:
             raise ValueError("intervalo de vigencia invertido")
+        if self.currency != "EUR":
+            raise ValueError("solo se admiten tarifas expresadas en EUR")
+        if self.vehicle_category != "ligero":
+            raise ValueError("vehicle_category debe normalizarse explícitamente como ligero")
         if self.verification_status not in {"verificado_con_peaje", "verificado_sin_peaje"}:
             raise ValueError("la tarifa debe tener estado de verificación explícito")
         if self.verification_status == "verificado_con_peaje" and amount <= 0:
@@ -106,8 +119,8 @@ def import_official_tariffs_csv(path: str | Path) -> tuple[TollTariff, ...]:
     """Lee CSV UTF-8 con los campos normalizados y rechaza filas ambiguas."""
     with Path(path).open(encoding="utf-8-sig", newline="") as stream:
         reader = csv.DictReader(stream)
-        if reader.fieldnames is None or not set(TARIFF_FIELDS).issubset(reader.fieldnames):
-            missing = sorted(set(TARIFF_FIELDS) - set(reader.fieldnames or ()))
+        if reader.fieldnames is None or not set(TARIFF_REQUIRED_FIELDS).issubset(reader.fieldnames):
+            missing = sorted(set(TARIFF_REQUIRED_FIELDS) - set(reader.fieldnames or ()))
             raise ValueError(f"faltan columnas tarifarias: {', '.join(missing)}")
         records = []
         seen: set[str] = set()
@@ -121,8 +134,10 @@ def import_official_tariffs_csv(path: str | Path) -> tuple[TollTariff, ...]:
             # Permite decimal con coma usado en algunos documentos, no separadores de miles.
             if "," in amount_text and "." not in amount_text:
                 amount_text = amount_text.replace(",", ".")
-            records.append(TollTariff(**{**{field: row.get(field, "").strip() for field in TARIFF_FIELDS},
-                                         "amount_eur": float(amount_text)}))
+            values = {field: row.get(field, "").strip() for field in TARIFF_FIELDS}
+            values["payment_method"] = values["payment_method"] or "unknown"
+            values["currency"] = values["currency"] or "EUR"
+            records.append(TollTariff(**{**values, "amount_eur": float(amount_text)}))
     return tuple(records)
 
 
@@ -148,6 +163,8 @@ def assess_route_tolls(
     inventory_complete: bool = False,
     inventory_source: str | None = None,
     no_toll_source: str | None = None,
+    payment_method: str | None = None,
+    time_rule: str | None = None,
 ) -> RouteTollAssessment:
     """Calcula importe solo para secciones verificadas y tarifas vigentes exactas.
 
@@ -159,23 +176,19 @@ def assess_route_tolls(
     ids = [section.section_id for section in sections]
     if len(ids) != len(set(ids)):
         raise ValueError("secciones duplicadas: se previene cobrar dos veces el mismo tramo")
-    if not inventory_complete:
-        return RouteTollAssessment(route_id, TollStatus.UNKNOWN, None, "EUR", as_of, (), (),
-                                   ("inventario de secciones de la ruta incompleto",),
-                                   "no se calcula un total con cobertura tarifaria parcial")
     if not sections:
-        if no_toll_source:
+        if inventory_complete and no_toll_source:
             return RouteTollAssessment(route_id, TollStatus.VERIFIED_WITHOUT_TOLL, 0.0, "EUR", as_of,
                                        (no_toll_source,), (), (), "inventario completo confirma ausencia de sección tarifada")
         return RouteTollAssessment(route_id, TollStatus.UNKNOWN, None, "EUR", as_of, (), (),
                                    ("cobertura tarifaria no demostrada",), "sin secciones cobradas identificadas")
-    if not inventory_source:
+    if inventory_complete and not inventory_source:
         return RouteTollAssessment(route_id, TollStatus.UNKNOWN, None, "EUR", as_of, (), (),
                                    ("fuente de cobertura de la ruta ausente",),
                                    "no se calcula un total sin fuente de cobertura")
 
     total = 0.0
-    refs: list[str] = [inventory_source]
+    refs: list[str] = [inventory_source] if inventory_source else []
     tariff_ids: list[str] = []
     unresolved: list[str] = []
     for section in sections:
@@ -192,6 +205,8 @@ def assess_route_tolls(
             and _norm(tariff.road) == _norm(section.road)
             and _norm(tariff.vehicle_category) == _norm(vehicle_category)
             and tariff.applies_on(as_of)
+            and (payment_method is None or _norm(tariff.payment_method) == _norm(payment_method))
+            and (time_rule is None or _norm(tariff.time_rule) == _norm(time_rule))
         )]
         if len(matches) != 1:
             unresolved.append(section.section_id)
@@ -202,7 +217,9 @@ def assess_route_tolls(
         refs.append(tariff.source_url)
         refs.extend(section.evidence)
 
-    if unresolved:
+    if unresolved or not inventory_complete:
+        if not inventory_complete:
+            unresolved.append("inventario de secciones de la ruta incompleto")
         return RouteTollAssessment(route_id, TollStatus.UNKNOWN, None, "EUR", as_of,
                                    tuple(dict.fromkeys(refs)), tuple(tariff_ids), tuple(unresolved),
                                    "suma de secciones verificadas; total incompleto")

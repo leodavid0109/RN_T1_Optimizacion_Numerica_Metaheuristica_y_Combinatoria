@@ -23,6 +23,7 @@ docs/Informe_Parte1.docx
 # se aclaran las condiciones de redistribución.
 data/raw/routes/
 data/processed/routes/
+data/raw/tollguru/
 data/processed/matrices/
 # Datos cartográficos OSM y tarifas transcritas localmente hasta confirmar
 # permisos concretos de redistribución y completar su auditoría.

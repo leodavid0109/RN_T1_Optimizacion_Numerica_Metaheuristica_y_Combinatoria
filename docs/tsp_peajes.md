@@ -350,3 +350,136 @@ corredor: se conservan por ser IDs OSM diferentes, pero no se suman como
 cobros distintos. Las respuestas ORS no contenían `extra_info` (0 de 12), así
 que el cruce actual no dispone de identificadores de vía retornados por el
 motor.
+
+## 10. Auditoría de cobertura por arco
+
+`src/tsp/etl/toll_coverage.py` resume las etapas de evidencia por conexión
+dirigida: distancia/tiempo, geometría adquirida, candidatos de infraestructura,
+entrada/salida revisadas, tarifa verificada y completitud económica de los
+Modelos A y B. La salida separa expresamente candidatos geográficos de costos
+verificados. Para el Modelo B, `model_b_known_options_evaluable` solo indica que
+todas las alternativas actualmente registradas para ese arco tienen tarifa
+verificada; no afirma que esas alternativas sean exhaustivas.
+
+El informe puede regenerarse offline desde el dataset versionado y los archivos
+locales disponibles:
+
+```powershell
+.\.venv\Scripts\python.exe -m experiments.report_tsp_toll_coverage
+```
+
+Genera `data/processed/tolls/toll_coverage_national.json` y
+`toll_coverage_arcs.csv`. Lee el catálogo local de rutas y, si existe, el CSV de
+coincidencias Overpass. No consulta APIs. El directorio `data/processed/tolls/`
+permanece ignorado por Git, porque sus salidas incluyen datos derivados de OSM.
+Si esos archivos locales faltan en otra máquina, el informe conserva en cero
+solo los conteos observacionales de geometrías/candidatos; los estados
+tarifarios siguen desconocidos y no se infiere una cobertura económica.
+
+En la auditoría del 2026-10-13 se confirmó que el estado persistido cubre 2 de
+35 celdas, con 1 fallo 504 y 32 pendientes; el inventario disponible consolida
+168 objetos únicos de 171 observaciones (13 `toll_booth`, 155 vías `toll_road`)
+y no registra `toll_gantry`. Las 12 alternativas del piloto tienen geometría,
+pero ninguna tiene `extra_info` de ORS ni tarifa/entrada/salida verificada. El
+dataset nacional sí cubre distancia, duración y combustible para los 2.162
+arcos. La cobertura de costo económico completo de A y B permanece en cero;
+la tarifa nominal AP-68 de 39,90 EUR no se asigna a ninguna geometría hasta
+confirmar sus estaciones, sentido, clase, condiciones y cobertura tarifaria.
+
+## 11. Inventario oficial de corredores y transcripción AP-68
+
+La primera versión de un catálogo de corredores prioritarios queda en
+`data/reference/toll_roads_2026.csv`. Se carga y valida con
+`load_toll_road_catalog`. Es una lista de trabajo, no un inventario exhaustivo
+de cada tramo de peaje de España: la página gubernamental identifica ejes
+principales para 2026, mientras que su subsección enlazada “Autopistas con
+peaje” aún describe una lista y tarifas de 2024. Por eso los operadores,
+secciones exactas y vigencias que no están respaldados por una publicación
+2026 aparecen como pendientes, no como hechos inferidos.
+
+La página gubernamental indica que el peaje puede depender del vehículo,
+distancia y, en algunos corredores, horario y método de pago. También describe
+el pago en ramales de entrada/salida o en tronco y medios efectivo, tarjeta y
+VIA-T. La resolución SEITT de 2024 determina el marco de actualización anual
+máxima para 2026 en su red; la modificación BOE de diciembre de 2025 mantiene
+AP-7 Cartagena–Vera como corredor SEITT y dispone tarifa cero para la
+Circunvalación de Alicante. El acuerdo entró en vigor con su publicación el
+2025-12-18, así que esa sección tiene tarifa publicada de cero en el escenario
+2026. La ruta completa solo puede marcarse gratuita si se demuestra que no
+recorre otros tramos tarifados.
+
+Fuentes consultadas el 2026-10-13:
+
+- Punto de Acceso General, “Peajes y Viñetas”, última actualización indicada
+  2026-03-19: https://administracion.gob.es/tu-espacio-europeo/derechos-obligaciones/ciudadanos/vehiculos/normas-trafico-viales/peajes-vinetas
+- Tarifas oficiales de Autopistas: https://www.autopistas.com/tarifas-y-descuentos/tarifas/
+- PDF AP-68 2026: https://www.autopistas.com/wp-content/uploads/2025/12/26_003-Avasa-AP68-Bilbao_Zaragoza-T26.pdf
+- Acuerdo marco de tarifas SEITT: https://www.boe.es/eli/es/res/2024/12/06/%281%29
+- Modificación SEITT publicada como BOE-A-2025-25961:
+  https://www.boe.es/eli/es/res/2025/12/10/%282%29/dof/spa/pdf
+- Adenda de Circunvalación de Alicante, BOE-A-2026-2970:
+  https://www.boe.es/boe/dias/2026/02/09/pdfs/BOE-A-2026-2970.pdf
+- Fin de la concesión AVASA AP-68, BOE-A-2026-19039:
+  https://www.boe.es/diario_boe/txt.php?id=BOE-A-2026-19039
+- Tarifas catalanas 2026 (C-16 y C-32):
+  https://territori.gencat.cat/ca/03_infraestructures_i_mobilitat/carreteres/peatges-tarifes-descomptes/tarifes-peatges/index.html
+- Tramos de peaje gestionados por Bizkaia (AP-8 Galdakao–Ermua, Variante Sur Metropolitana y túneles de Artxanda):
+  https://www.bizkaia.eus/es/tema-detalle/-/edukia/dt/6320
+- Peajes AP-1 en Álava para el ejercicio 2026:
+  https://www.araba.eus/Presupuestos/2026/TOM-2026_PTO-50-02.html
+- Decreto gallego 125/2025: tarifas y bonificaciones AG-55/AG-57 durante 2026:
+  https://www.xunta.gal/dog/Publicados/2025/20251231/AnuncioG0765-291225-0001_gl.html
+
+### AP-68: tarifa del tramo nominal y rutas del piloto
+
+La tabla oficial de ligeros del PDF AP-68 contiene 39,90 EUR tanto para Bilbao
+→ Zaragoza como para Zaragoza → Bilbao; el documento dice que la tabla entra
+en vigor el 1 de enero de 2026 e incluye el IVA del 21 %. La transcripción local
+de esas dos filas se encuentra en
+`data/processed/tolls/ap68_2026_ligeros.csv`, dentro de un directorio ignorado
+por Git. Se conserva el documento como URL y página 1, pero no se copia el PDF
+al repositorio porque no se ha confirmado una licencia de redistribución del
+documento del operador. `published_on` permanece vacío porque la publicación
+web no da una fecha inequívoca; `acquired_on` registra la consulta del
+2026-10-13. La tarifa se registra como dato del par de estaciones, sin enlazarla
+automáticamente a una geometría.
+
+El Real Decreto 730/2026 establece el final de la concesión AVASA el
+2026-11-10. Por tanto, los valores del cuadro solo se consideran candidatos
+para el escenario anterior a la transición, incluido el 2026-10-12 del estudio;
+no se extrapolan al periodo posterior. El documento tiene una matriz de
+estaciones de entrada/salida y una tabla separada de estaciones de peaje
+abierto. La tarifa Bilbao–Zaragoza no representa todos los movimientos de la
+autopista.
+
+Las rutas ORS rápidas locales tienen distancias de 304,1119 km
+Bilbao→Zaragoza y 304,8493 km en sentido inverso, e incluyen `AP-68` entre sus
+referencias de vía. La relación OSM AP-68 se alinea aproximadamente 290,943 km
+con la primera y una longitud similar con la inversa. La única infraestructura
+`toll_booth` del inventario local cercana a estas dos rutas es el área de peaje
+de Alagón: dos nodos OSM con el mismo nombre, separados por unos 30 m. La
+geometría rápida pasa junto a ambos cerca del 91,2 % de la primera ruta y del
+9,0 % de la inversa. Pueden corresponder a puntos de cobro/calzada distintos;
+la información local no determina su función y no los suma como dos cargos.
+El inventario no contiene evidencia
+local equivalente de las estaciones terminales de Bilbao/Zaragoza. Estos datos
+prueban una coincidencia cartográfica extensa con AP-68, no las estaciones
+exactas de entrada/salida, sentido de cobro, recorrido tarifario completo ni
+ausencia de otros peajes en los conectores. Las alternativas `avoid_tolls`
+también tienen pequeñas coincidencias locales con la relación AP-68, así que
+no se pueden etiquetar como libres de peaje.
+
+Resultado conservador: ninguna de las cuatro geometrías AP-68 del piloto
+(rápidas y `avoid_tolls`, dos sentidos) obtiene actualmente un total monetario
+de ruta. Las tarifas bilaterales 39,90 EUR quedan disponibles como referencia
+tarifaria, pero el importe de ruta permanece `desconocido` hasta verificar el
+par real de estaciones, dirección/calzada, categoría, condiciones y cobertura
+completa. Una futura auditoría puede resolverlo mediante geometría de accesos
+y estaciones oficiales, instrucciones/segmentos de ORS con IDs de vía y una
+revisión cartográfica de conectores terminales.
+
+El importador `TollTariff` ahora conserva también método de pago, regla
+horaria, nombre de documento y página de fuente. Estos campos son opcionales
+para seguir aceptando CSV históricos; cuando faltan, el método de pago queda
+como `unknown`. La columna `published_on` admite vacío para no inventar una
+fecha de publicación.

@@ -2,6 +2,7 @@
 
 import csv
 import json
+from pathlib import Path
 from urllib.error import HTTPError
 
 import pytest
@@ -9,7 +10,7 @@ import pytest
 from src.tsp.alternatives import RouteAlternative, TollStatus
 from src.tsp.etl import (
     BoundingBox, OverpassCatalogStore, OverpassClient, OverpassError, RouteTollSection, TollTariff, apply_toll_assessment,
-    assess_route_tolls, import_official_tariffs_csv, load_infrastructure_catalog,
+    assess_route_tolls, import_official_tariffs_csv, load_infrastructure_catalog, load_toll_road_catalog,
     match_infrastructure_to_route, match_route_alternatives_to_infrastructure,
     parse_overpass_response, save_infrastructure_catalog,
 )
@@ -209,6 +210,83 @@ def test_tariff_csv_import_validates_schema_and_normalizes_decimal_comma(tmp_pat
     assert records[0].amount_eur == 3.25
     assert records[0].applies_on("2026-10-12")
     assert not records[0].applies_on("2027-01-01")
+
+
+def test_tariff_csv_round_trips_payment_and_source_location():
+    from src.tsp.etl.toll_tariffs import export_official_tariffs_csv
+    path = Path("data/reference/.test-tariffs-roundtrip.csv")
+    tariff = _tariff(published_on="", payment_method="unspecified_base_tariff", time_rule="no_rule_published",
+                     source_document="tariffs-2026.pdf", source_page="1")
+    try:
+        export_official_tariffs_csv(path, [tariff])
+        loaded = import_official_tariffs_csv(path)[0]
+        assert loaded.payment_method == "unspecified_base_tariff"
+        assert loaded.time_rule == "no_rule_published"
+        assert loaded.source_document == "tariffs-2026.pdf"
+        assert loaded.source_page == "1"
+        assert loaded.published_on == ""
+    finally:
+        path.unlink(missing_ok=True)
+
+
+def test_tariff_csv_remains_compatible_with_legacy_schema():
+    path = Path("data/reference/.test-tariffs-legacy.csv")
+    fields = tuple(field for field in TARIFF_FIELDS if field not in
+                   {"payment_method", "time_rule", "source_document", "source_page"})
+    try:
+        with path.open("w", encoding="utf-8", newline="") as stream:
+            writer = csv.DictWriter(stream, fieldnames=fields)
+            writer.writeheader()
+            writer.writerow({field: getattr(_tariff(), field) for field in fields})
+        assert import_official_tariffs_csv(path)[0].payment_method == "unknown"
+    finally:
+        path.unlink(missing_ok=True)
+
+
+def test_official_2026_toll_road_catalog_is_explicitly_partial():
+    catalog = load_toll_road_catalog("data/reference/toll_roads_2026.csv")
+    by_id = {road.road_id: road for road in catalog}
+    assert len(by_id) == len(catalog)
+    assert "AP-9-GALICIA" in by_id and "AP-68-BILBAO-ZARAGOZA" in by_id
+    assert by_id["AP-68-BILBAO-ZARAGOZA"].valid_through == "2026-11-10"
+    assert by_id["AP-7-ALICANTE-CIRCUNVALACION"].source_status == "official_zero_tariff"
+    assert by_id["AP-7-ALICANTE-CIRCUNVALACION"].valid_from == "2025-12-18"
+    assert by_id["AP-9-GALICIA"].operator == "unverified"
+
+
+def test_toll_road_catalog_rejects_invalid_date_intervals():
+    from src.tsp.etl.toll_road_catalog import ROAD_FIELDS
+    path = Path("data/reference/.test-roads-invalid.csv")
+    row = {field: "x" for field in ROAD_FIELDS}
+    row.update(road_id="AP-X", source_url="https://example.invalid", valid_from="2026-12-31",
+               valid_through="2026-01-01")
+    try:
+        with path.open("w", encoding="utf-8", newline="") as stream:
+            writer = csv.DictWriter(stream, fieldnames=ROAD_FIELDS)
+            writer.writeheader()
+            writer.writerow(row)
+        with pytest.raises(ValueError, match="intervalo de vigencia invertido"):
+            load_toll_road_catalog(path)
+    finally:
+        path.unlink(missing_ok=True)
+
+
+def test_toll_road_catalog_rejects_duplicate_ids():
+    from src.tsp.etl.toll_road_catalog import ROAD_FIELDS
+    path = Path("data/reference/.test-roads-duplicate.csv")
+    row = {field: "x" for field in ROAD_FIELDS}
+    row.update(road_id="AP-X", source_url="https://example.invalid", valid_from="2026-01-01",
+               valid_through="2026-12-31")
+    try:
+        with path.open("w", encoding="utf-8", newline="") as stream:
+            writer = csv.DictWriter(stream, fieldnames=ROAD_FIELDS)
+            writer.writeheader()
+            writer.writerow(row)
+            writer.writerow(row)
+        with pytest.raises(ValueError, match="road_id duplicado"):
+            load_toll_road_catalog(path)
+    finally:
+        path.unlink(missing_ok=True)
 
 
 def test_assessment_matches_entry_exit_direction_vehicle_and_validity():
