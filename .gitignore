@@ -2,6 +2,10 @@ __pycache__/
 *.pyc
 .venv/
 .pytest_cache/
+.pytest-tmp*/
+.pytest-toll*/
+pytest-cache-files-*/
+pytest-run-*/
 .ipynb_checkpoints/
 .DS_Store
 
@@ -14,3 +18,13 @@ node_modules/
 
 # el informe se edita en Google Docs; el .docx generado es solo local
 docs/Informe_Parte1.docx
+
+# Respuestas de proveedores y matrices derivadas: almacenamiento local mientras
+# se aclaran las condiciones de redistribución.
+data/raw/routes/
+data/processed/routes/
+data/processed/matrices/
+# Datos cartográficos OSM y tarifas transcritas localmente hasta confirmar
+# permisos concretos de redistribución y completar su auditoría.
+data/raw/tolls/
+data/processed/tolls/

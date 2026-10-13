@@ -1,0 +1,16 @@
+# Parámetros técnicos no secretos. La clave se suministra en ORS_API_KEY.
+provider: openrouteservice
+profile: driving-car
+directions_endpoint: https://api.openrouteservice.org/v2/directions
+timeout_seconds: 30
+max_retries: 3
+minimum_seconds_between_requests: 1.5
+standard_plan_daily_directions_limit: 2000
+standard_plan_per_minute_directions_limit: 40
+standard_plan_daily_matrix_limit: 500
+standard_plan_per_minute_matrix_limit: 40
+storage:
+  route_catalog: data/processed/routes/route_alternatives.csv
+  acquisition_state: data/processed/routes/acquisition_state.json
+  raw_responses: data/raw/routes
+  matrices: data/processed/matrices
