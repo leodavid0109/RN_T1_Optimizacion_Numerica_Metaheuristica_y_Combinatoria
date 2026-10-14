@@ -1,12 +1,25 @@
 # Fuentes de datos del TSP
 
+## Migración del endpoint ORS Directions (2026-10-13)
+
+- HeiGIT anunció la migración desde `api.openrouteservice.org` hacia `api.heigit.org`: https://ask.openrouteservice.org/t/deprecating-api-openrouteservice-org-in-favour-of-api-heigit-org/7912 . El endpoint configurado para Directions es `https://api.heigit.org/openrouteservice/v2/directions`; Matrix conserva `https://api.heigit.org/openrouteservice/v2/matrix`.
+- La referencia de [Directions Extra Info](https://giscience.github.io/openrouteservice/api-reference/endpoints/directions/extra-info/) se consultó el 2026-10-13. Su tabla actual marca `tollways`, `waycategory` y `osmid` disponibles para `driving-car`, con respuesta de OSM IDs bajo `osmId`. El primer intento controlado, por decisión de alcance, solicita solo `tollways` y `waycategory`; disponibilidad documentada no sustituye la validación en una respuesta real. Los atributos cartográficos no proporcionan importes tarifarios.
+- La petición anterior Madrid–Toledo terminó en timeout de transporte después de un intento contabilizado, sin código HTTP. No se infiere si el backend alcanzó a procesarla. No se realizó una nueva solicitud durante esta corrección.
+
 ## Consulta documental Matrix ORS (2026-10-12)
 
 - Documentación del endpoint Matrix: https://giscience.github.io/openrouteservice/api-reference/endpoints/matrix/ . Define locations como coordenadas, permite fuentes/destinos como subconjuntos de índices, reporta distancias en m/km/millas y duraciones siempre en segundos. Si se omiten fuentes/destinos, ambos usan todas las ubicaciones; la diagonal de una ubicación consigo misma es cero.
 - Límites públicos: https://openrouteservice.org/restrictions/ . El Standard publica 3.500 pares origen×destino por petición Matrix y 25 pares cuando se usan argumentos dinámicos. Para 47×47 = 2.209 se omiten `sources` y `destinations`, evitando el modo dinámico; es una solicitud completa de todas las ubicaciones.
 - Migración del host: https://ask.openrouteservice.org/t/reducing-the-quota-of-deprecated-api-api-openrouteservice-org/8013 . El anuncio de HeiGIT del 2026-08-27 indica que `api.openrouteservice.org` está deprecado en favor de `api.heigit.org` y que el primero quedó limitado al 10% de las cuotas publicadas, con apagado previsto entre 2026-11-02 y 2026-11-06. La configuración Matrix usa `https://api.heigit.org/openrouteservice/v2/matrix`.
 - Compatibilidad de `preference`: la documentación Matrix consultada no enumera ese campo y la propuesta para añadir preferencias seguía abierta el 2026-10-12: https://github.com/GIScience/openrouteservice/pull/2324 . Por eso el cliente no envía `preference`; usa el comportamiento público por defecto de `driving-car`. No se considera automáticamente idéntico a Directions ni al Modelo A hasta medir diferencias.
-- Restricciones de redistribución: se revisaron los términos y materiales de ORS/HeiGIT, pero no se pudo verificar una autorización inequívoca para publicar indefinidamente la respuesta cruda y matrices derivadas de esta cuenta. Las respuestas y matrices externas permanecen excluidas de Git en almacenamiento local; revisar términos vigentes y atribución antes de publicarlas.
+- Alcance de redistribución: las respuestas HTTP crudas y encabezados de cuota permanecen excluidos de Git. Los resultados derivados seleccionados para distribución pública se publicaron/prepararon en `data/datasets/spain_tsp_2026/` bajo CC BY-SA 4.0 según los términos de cuenta HeiGIT consultados; ODbL se trata separadamente y su alcance se documenta en `LICENSE-DATA.md`.
+
+## Paquete nacional ORS Directions (2026-10-14)
+
+- Se confirmó la licencia de resultados ORS en los términos de cuenta HeiGIT, sección “Attribution and License — openrouteservice”, consultados el 2026-10-12: resultados CC BY-SA 4.0 y atribución **© openrouteservice by HeiGIT | Data from OpenStreetMap**. El documento no indica versión o fecha de vigencia. OpenStreetMap se atribuye y licencia por separado bajo ODbL 1.0; no se consideran intercambiables. Véase [LICENSE-DATA.md](datasets/spain_tsp_2026/LICENSE-DATA.md).
+- La distribución versionada contiene matrices ORS Matrix, combustible derivado, baselines `v*T + combustible` sin peajes y 2.162 salidas geométricas ORS Directions comprimidas. El paquete no contiene las respuestas HTTP crudas ni encabezados de cuota. Los originales permanecen en `data/raw/` y excluidos de Git.
+- Todas las rutas del paquete fueron adquiridas en `driving-car`, `preference=fastest`, con `extra_info=tollways,waycategory`; la ausencia de `osmId` se registra como limitación, no como invalidez. `tollways` es evidencia cartográfica y no una tarifa ni una prueba monetaria de cobro.
+- La exportación y la validación offline se reproducen con `python -m experiments.analyze_tsp_ors_extras`, `python -m experiments.export_tsp_spain_publication` y `python -m experiments.export_tsp_spain_publication --verify-only`.
 
 No se llamó a Matrix durante la preparación del flujo nacional. El comando se validó únicamente en modo de planificación, sin tráfico de red.
 
@@ -210,3 +223,27 @@ Fuentes oficiales revisadas el 2026-10-13:
   https://www.araba.eus/Presupuestos/2026/TOM-2026_PTO-50-02.html
 - Decreto gallego 125/2025, congelación 2026 y bonificaciones AG-55/AG-57:
   https://www.xunta.gal/dog/Publicados/2025/20251231/AnuncioG0765-291225-0001_gl.html
+
+### Revisión de estaciones OSM y ORS Extra Info (2026-10-13)
+
+- ORS Directions Extra Info:
+  https://giscience.github.io/openrouteservice/api-reference/endpoints/directions/extra-info/
+  y categorías de vía:
+  https://giscience.github.io/openrouteservice/api-reference/endpoints/directions/extra-info/waycategory
+  Consultado el 2026-10-13. La tabla vigente muestra `tollways`, `osmid` y
+  `waycategory` disponibles para `driving-car`; `osmid` se solicita con ese
+  nombre y aparece como `osmId`. La información no viene implícita: debe
+  pedirse en `extra_info`. La disponibilidad documental no confirma que una
+  respuesta concreta contenga todos los campos; el cliente lo valida.
+  `waycategory` es una máscara de bits: 3 combina Highway (1) y Tollways (2).
+- Tarifario AP-68 2026, página 1:
+  https://www.autopistas.com/wp-content/uploads/2025/12/26_003-Avasa-AP68-Bilbao_Zaragoza-T26.pdf
+  Consultado el 2026-10-13. La tabla de ligeros enumera estaciones de
+  referencia y muestra 39,90 EUR para Bilbao–Zaragoza desde 2026-01-01. El
+  precio no se vincula a geometrías ORS porque el snapshot local no verifica
+  estaciones de entrada y salida.
+- Los informes locales de estaciones están en
+  `data/processed/tolls/station_review/` y se regeneran con
+  `python -m experiments.report_tsp_toll_stations`. El informe usa el
+  inventario OSM parcial existente y las tres geometrías rápidas; no hizo
+  llamadas de red y permanece en directorios excluidos de Git.

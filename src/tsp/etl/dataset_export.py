@@ -29,7 +29,10 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 DATASET_FILES = (
     "cities.csv", "distance_km.csv", "duration_hours.csv",
     "fuel_reference_eur.csv", "fuel_low_eur.csv", "fuel_high_eur.csv",
+    "baseline_cost_v_10_eur.csv", "baseline_cost_v_25_eur.csv",
+    "baseline_cost_v_50_eur.csv",
 )
+BASELINE_HOUR_VALUES = (10, 25, 50)
 
 
 def export_spain_dataset(
@@ -87,6 +90,12 @@ def export_spain_dataset(
     for scenario, matrix in fuels.items():
         suffix = "reference" if scenario == "reference" else scenario
         _write_matrix(out / f"fuel_{suffix}_eur.csv", ids, matrix)
+    baseline_costs = {
+        hour_value: hour_value * duration + fuels["reference"]
+        for hour_value in BASELINE_HOUR_VALUES
+    }
+    for hour_value, matrix in baseline_costs.items():
+        _write_matrix(out / f"baseline_cost_v_{hour_value}_eur.csv", ids, matrix)
     _write_text(out / "README.md", _readme(payload.get("acquired_at")))
     _write_text(out / "LICENSE-DATA.md", _license_notice())
 
@@ -99,6 +108,12 @@ def export_spain_dataset(
         "directed_non_diagonal_arcs": len(cities) * (len(cities) - 1),
         "city_order": ids,
         "units": {"distance_km": "km", "duration_hours": "h", "fuel_cost": "EUR"},
+        "baseline_costs": {
+            "scope": "BASELINE SIN COMPONENTE DE PEAJES",
+            "formula": "value_hour_eur_per_hour * duration_hours + fuel_reference_eur",
+            "hour_values_eur_per_hour": list(BASELINE_HOUR_VALUES),
+            "tolls_included": False,
+        },
         "routing": {
             "provider": "openrouteservice",
             "profile": request.get("url", "").rstrip("/").split("/")[-1],
@@ -182,6 +197,15 @@ def load_published_dataset(dataset_dir: str | Path) -> dict[str, Any]:
         "fuel_reference_eur": "fuel_reference_eur.csv", "fuel_low_eur": "fuel_low_eur.csv",
         "fuel_high_eur": "fuel_high_eur.csv",
     }
+    baseline_metadata = metadata.get("baseline_costs")
+    if baseline_metadata is not None:
+        if (baseline_metadata.get("scope") != "BASELINE SIN COMPONENTE DE PEAJES"
+                or baseline_metadata.get("tolls_included") is not False):
+            raise ValueError("el alcance de las matrices base debe excluir explícitamente los peajes")
+        for hour_value in baseline_metadata.get("hour_values_eur_per_hour", []):
+            hour_value = int(hour_value)
+            filename = f"baseline_cost_v_{hour_value}_eur.csv"
+            expected_files[f"baseline_cost_v_{hour_value}_eur"] = filename
     matrices = {}
     for key, filename in expected_files.items():
         path = directory / filename
@@ -197,6 +221,12 @@ def load_published_dataset(dataset_dir: str | Path) -> dict[str, Any]:
         expected = matrices["distance_km"] / 100.0 * float(consumptions[scenario]) * price
         if not np.allclose(matrices[f"fuel_{scenario}_eur"], expected, rtol=1e-14, atol=1e-15):
             raise ValueError(f"fuel_{scenario}_eur.csv no concilia con distance y la configuración económica")
+    for hour_value in baseline_metadata.get("hour_values_eur_per_hour", []) if baseline_metadata else []:
+        hour_value = int(hour_value)
+        key = f"baseline_cost_v_{hour_value}_eur"
+        expected = hour_value * matrices["duration_hours"] + matrices["fuel_reference_eur"]
+        if not np.allclose(matrices[key], expected, rtol=1e-14, atol=1e-14):
+            raise ValueError(f"{key}.csv no concilia con tiempo + combustible de referencia")
     if metadata.get("tolls_included") is not False or metadata.get("complete_economic_cost_matrix_exists") is not False:
         raise ValueError("dataset no declara explícitamente exclusión de peajes/costo total")
     return {"city_order": ids, **matrices, "metadata": metadata}
@@ -314,7 +344,7 @@ def _readme(acquired_at: str | None) -> str:
 
 Datos adquiridos mediante openrouteservice Matrix (`driving-car`) el {local_acquired_at} (hora Bogotá); el timestamp UTC y el timestamp del proveedor constan en `metadata.json`. Se solicitaron distancia y duración en unidades originales m/s, con 47 orígenes y 47 destinos en orden canónico. Matrix utiliza la preferencia predeterminada de su endpoint; no se etiqueta como la estrategia `fastest` de Directions. ORS no informó la versión de su grafo.
 
-Incluye distancias dirigidas, duraciones y tres escenarios de combustible. Las distancias se convierten m/1000 a km; las duraciones s/3600 a horas. No incluye tarifas de peaje ni matriz de costo económico total.
+Incluye distancias dirigidas, duraciones, tres escenarios de combustible y matrices base `v*T + combustible` para v=10, 25 y 50 EUR/h. Estas matrices son **BASELINE SIN COMPONENTE DE PEAJES**; no representan peajes cero. Las distancias se convierten m/1000 a km; las duraciones s/3600 a horas. No existe matriz de costo económico total con peajes.
 
 ## Licencias de datos
 
@@ -322,7 +352,7 @@ Los resultados Matrix de openrouteservice y las matrices de combustible derivada
 
 ## Archivos y unidades
 
-`cities.csv` conserva el orden canónico y procedencia IGN; `distance_km.csv` está en km; `duration_hours.csv` en horas; las tres matrices `fuel_*_eur.csv` están en EUR. Las matrices son dirigidas: fila = origen, columna = destino; la diagonal es cero. CSV tiene etiquetas de fila y columna, así que contiene 48×48 campos con 47×47 valores numéricos.
+`cities.csv` conserva el orden canónico y procedencia IGN; `distance_km.csv` está en km; `duration_hours.csv` en horas; las matrices `fuel_*_eur.csv`, `baseline_cost_v_*_eur.csv` están en EUR. Las matrices son dirigidas: fila = origen, columna = destino; la diagonal es cero. CSV tiene etiquetas de fila y columna, así que contiene 48×48 campos con 47×47 valores numéricos.
 
 ## Uso offline
 
@@ -330,7 +360,7 @@ Desde la raíz del repositorio: `python -c "from src.tsp.etl.dataset_export impo
 
 ## Combustible y peajes
 
-Precio: Eurosuper 95, 1.849098398 EUR/L, Weekly Oil Bulletin de la Comisión Europea publicado el 2026-10-08 y consultado el 2026-10-12. BMW 120 F70, 5.4 L/100 km de referencia, con escenarios 5.3/5.5. Fórmula: `distance_km / 100 × consumption_l_100km × price_eur_l`. La fecha efectiva de descarga del boletín no quedó registrada. Los peajes no están incorporados; un importe desconocido no se reemplaza por cero.
+Precio: Eurosuper 95, 1.849098398 EUR/L, Weekly Oil Bulletin de la Comisión Europea publicado el 2026-10-08 y consultado el 2026-10-12. BMW 120 F70, 5.4 L/100 km de referencia, con escenarios 5.3/5.5. Fórmula: `distance_km / 100 × consumption_l_100km × price_eur_l`. La fecha efectiva de descarga del boletín no quedó registrada. Las matrices base usan `v*T + combustible` y excluyen completamente los peajes; un importe desconocido no se reemplaza por cero.
 
 ## Atribución
 

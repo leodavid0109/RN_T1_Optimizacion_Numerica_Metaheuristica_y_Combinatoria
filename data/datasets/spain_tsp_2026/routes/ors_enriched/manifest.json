@@ -1,0 +1,139 @@
+{
+  "attribution": "© openrouteservice by HeiGIT | Data from OpenStreetMap",
+  "city_order": [
+    "alava",
+    "albacete",
+    "alicante",
+    "almeria",
+    "asturias",
+    "avila",
+    "badajoz",
+    "barcelona",
+    "burgos",
+    "caceres",
+    "cadiz",
+    "cantabria",
+    "castellon",
+    "ciudad_real",
+    "cordoba",
+    "cuenca",
+    "girona",
+    "granada",
+    "guadalajara",
+    "gipuzkoa",
+    "huelva",
+    "huesca",
+    "jaen",
+    "a_coruna",
+    "la_rioja",
+    "leon",
+    "lleida",
+    "lugo",
+    "madrid",
+    "malaga",
+    "murcia",
+    "navarra",
+    "ourense",
+    "palencia",
+    "pontevedra",
+    "salamanca",
+    "segovia",
+    "sevilla",
+    "soria",
+    "tarragona",
+    "teruel",
+    "toledo",
+    "valencia",
+    "valladolid",
+    "bizkaia",
+    "zamora",
+    "zaragoza"
+  ],
+  "dataset_id": "spain_tsp_2026",
+  "directed_non_diagonal_arcs": 2162,
+  "encoding": "UTF-8 JSON Lines compressed with deterministic gzip (mtime=0), shards ordered by city catalog",
+  "extra_info": [
+    "tollways",
+    "waycategory"
+  ],
+  "osm_notice": "Contains routing outputs derived from OpenStreetMap data; see LICENSE-DATA.md for separate ODbL notice and scope.",
+  "preference": "fastest",
+  "profile": "driving-car",
+  "results_license": "CC BY-SA 4.0",
+  "route_count": 2162,
+  "schema_version": 1,
+  "shard_size": 200,
+  "shards": [
+    {
+      "path": "routes/ors_enriched/routes-0001.jsonl.gz",
+      "records": 200,
+      "sha256": "f3d8791e82ec08db96849796b2eace1bab7443c7c479cc99d1ada878313abe48",
+      "size_bytes": 6988727
+    },
+    {
+      "path": "routes/ors_enriched/routes-0002.jsonl.gz",
+      "records": 200,
+      "sha256": "9de904d052528580db44b44355dfb96b2d6b8c411b6346a868321faea0f880a9",
+      "size_bytes": 6601980
+    },
+    {
+      "path": "routes/ors_enriched/routes-0003.jsonl.gz",
+      "records": 200,
+      "sha256": "fafb6273d2193f956d5cdb707b8d4eda8a0afb0002f19fb563acfae2737e1382",
+      "size_bytes": 6695725
+    },
+    {
+      "path": "routes/ors_enriched/routes-0004.jsonl.gz",
+      "records": 200,
+      "sha256": "c69e648a4f48cf674116d05a1e0a44eef07482d1c47059b1eddcd6f6704b1e0f",
+      "size_bytes": 6719813
+    },
+    {
+      "path": "routes/ors_enriched/routes-0005.jsonl.gz",
+      "records": 200,
+      "sha256": "b044b524f7ba35de3169f5adc3820f4c1d5b9beb1d58d07fc59c23c76f748cd0",
+      "size_bytes": 6762514
+    },
+    {
+      "path": "routes/ors_enriched/routes-0006.jsonl.gz",
+      "records": 200,
+      "sha256": "408441c8f92a40d88172f8eb4defc8e0e74dbe20fb57cba7a1cb3b50d75339c2",
+      "size_bytes": 6583459
+    },
+    {
+      "path": "routes/ors_enriched/routes-0007.jsonl.gz",
+      "records": 200,
+      "sha256": "a3fc1cb22d321f77177737b71c1cd1ab0450a78b50b011db4296f4b779827c1d",
+      "size_bytes": 6895310
+    },
+    {
+      "path": "routes/ors_enriched/routes-0008.jsonl.gz",
+      "records": 200,
+      "sha256": "3e7f12960a4cdeb5efe6b471916447398b5839bbaf36886b4f3c6cda27f695b4",
+      "size_bytes": 7130985
+    },
+    {
+      "path": "routes/ors_enriched/routes-0009.jsonl.gz",
+      "records": 200,
+      "sha256": "9723aeda74ce6c040503e386d6a2cb8eb222a9c22e89220e57f652a42906bd72",
+      "size_bytes": 5931507
+    },
+    {
+      "path": "routes/ors_enriched/routes-0010.jsonl.gz",
+      "records": 200,
+      "sha256": "3c778af601afe4f4bbe19aede58d8bf3749d322214bbd70b19a31884987c793d",
+      "size_bytes": 6012809
+    },
+    {
+      "path": "routes/ors_enriched/routes-0011.jsonl.gz",
+      "records": 162,
+      "sha256": "3921f1d15df99a864534ec32a2f06a755e7d5863c73383e1e8f27fe4f6b67dfd",
+      "size_bytes": 4693337
+    }
+  ],
+  "units": {
+    "distance_m": "m",
+    "duration_s": "s",
+    "geometry": "WGS84 longitude,latitude"
+  }
+}
