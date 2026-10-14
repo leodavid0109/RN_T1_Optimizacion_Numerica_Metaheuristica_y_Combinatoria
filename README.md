@@ -114,10 +114,10 @@ python -m experiments.validate_tsp_aco --config configs/tsp_baselines_demo.yaml
 
 ### Instancia vial nacional offline
 
-El paquete `data/datasets/spain_tsp_2026/` contiene el catálogo de 47 ciudades y matrices dirigidas de distancia, duración y combustible en varios escenarios. Se carga y valida sin ORS:
+El paquete `data/datasets/spain_tsp_2026/` contiene el catálogo de 47 ciudades, matrices dirigidas de distancia, duración, combustible y tres **baselines sin componente de peajes**, además de 2.162 geometrías Directions con `tollways` y `waycategory`. Se carga y valida sin ORS:
 
 ```bash
 python -c "from src.tsp.etl import load_published_dataset; d=load_published_dataset('data/datasets/spain_tsp_2026'); print(len(d['city_order']), d['distance_km'].shape)"
 ```
 
-Las salidas de openrouteservice están bajo CC BY-SA 4.0 con atribución a HeiGIT; la atribución a OpenStreetMap y el aviso/enlace ODbL se documentan por separado. El catálogo de ciudades conserva la procedencia IGN. El dataset no incluye tarifas verificadas para todos los arcos, por lo que **no hay una matriz económica total completa**. El código y los datos tienen licencias separadas; no se infiere licencia de software a partir de `LICENSE-DATA.md`.
+Las salidas de openrouteservice están bajo CC BY-SA 4.0 con atribución a HeiGIT; la atribución a OpenStreetMap y el aviso/enlace ODbL se documentan por separado. El catálogo de ciudades conserva la procedencia IGN. Los baselines calculan `v*T + combustible` para v=10, 25 y 50 EUR/h y no significan peaje cero. **No hay una matriz económica total completa.** Las respuestas crudas no se incluyen. El código y los datos tienen licencias separadas; no se infiere licencia de software a partir de `LICENSE-DATA.md`.

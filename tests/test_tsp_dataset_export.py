@@ -39,7 +39,8 @@ def test_export_is_deterministic_complete_and_loads_offline(tmp_path):
     assert metadata_a["directed_non_diagonal_arcs"] == 2162
     assert set(metadata_a["files_sha256"]) == {
         "cities.csv", "distance_km.csv", "duration_hours.csv", "fuel_reference_eur.csv",
-        "fuel_low_eur.csv", "fuel_high_eur.csv",
+        "fuel_low_eur.csv", "fuel_high_eur.csv", "baseline_cost_v_10_eur.csv",
+        "baseline_cost_v_25_eur.csv", "baseline_cost_v_50_eur.csv",
     }
     for filename in (*metadata_a["files_sha256"], "README.md", "LICENSE-DATA.md", "metadata.json", "SHA256SUMS.txt"):
         assert (first / filename).read_bytes() == (second / filename).read_bytes()
@@ -49,6 +50,10 @@ def test_export_is_deterministic_complete_and_loads_offline(tmp_path):
     assert loaded["duration_hours"].shape == (47, 47)
     assert np.count_nonzero(loaded["distance_km"] != loaded["distance_km"].T) > 0
     assert np.allclose(loaded["fuel_reference_eur"], loaded["distance_km"] / 100 * 5.4 * 1.849098398)
+    for value in (10, 25, 50):
+        key = f"baseline_cost_v_{value}_eur"
+        assert np.allclose(loaded[key], value * loaded["duration_hours"] + loaded["fuel_reference_eur"])
+    assert loaded["metadata"]["baseline_costs"]["scope"] == "BASELINE SIN COMPONENTE DE PEAJES"
     assert loaded["metadata"]["tolls_included"] is False
     assert loaded["metadata"]["redistribution"]["ors_results_license"] == "CC BY-SA 4.0"
     assert loaded["metadata"]["redistribution"]["terms_checked_on"] == "2026-10-12"

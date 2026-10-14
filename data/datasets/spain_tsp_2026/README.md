@@ -14,7 +14,26 @@ Los resultados Matrix de openrouteservice y las matrices de combustible derivada
 
 ## Uso offline
 
-Desde la raíz del repositorio: `python -c "from src.tsp.etl.dataset_export import load_published_dataset; d=load_published_dataset('data/datasets/spain_tsp_2026'); print(d['city_order'][:3], d['distance_km'].shape)"`. La carga valida hashes y orden. No construye costos totales porque los peajes siguen sin estar completos.
+El cargador del repositorio comprueba los hashes, el orden y las matrices base. Ejemplo para consultar un arco y evaluar un tour cerrado (incluye retorno a la primera ciudad):
+
+```python
+from src.tsp.etl.dataset_export import load_published_dataset
+
+data = load_published_dataset("data/datasets/spain_tsp_2026")
+index = {city_id: i for i, city_id in enumerate(data["city_order"])}
+i, j = index["madrid"], index["toledo"]
+print("Madrid → Toledo, v=25:", data["baseline_cost_v_25_eur"][i, j], "EUR")
+
+tour_ids = ["madrid", "toledo", "caceres"]  # demostración; no es una solución TSP
+tour = [index[city] for city in tour_ids]
+closed = tour + [tour[0]]
+for value in (10, 25, 50):
+    matrix = data[f"baseline_cost_v_{value}_eur"]
+    total = sum(float(matrix[a, b]) for a, b in zip(closed, closed[1:]))
+    print(f"Baseline sin peajes, v={value}: {total:.6f} EUR")
+```
+
+El módulo ACO consume un `TSPObjective`; no se añade un GA en esta entrega porque todavía no está integrado en esta rama. Las matrices CSV quedan disponibles para que el GA compartido las cargue por el mecanismo que implemente su integrante. No se necesita clave ni conexión de red para leer el paquete.
 
 ## Combustible y peajes
 
@@ -23,3 +42,12 @@ Precio: Eurosuper 95, 1.849098398 EUR/L, Weekly Oil Bulletin de la Comisión Eur
 ## Atribución
 
 Rutas: © openrouteservice by HeiGIT. Datos cartográficos: © OpenStreetMap contributors, ODbL. Coordenadas de ciudades: IGN, CC BY 4.0, según procedencia del catálogo. Ver `metadata.json`.
+
+
+## Rutas ORS enriquecidas
+
+Se distribuyen las 2.162 geometrías dirigidas `fastest` como JSON Lines UTF-8 comprimidos en gzip determinista (`mtime=0`), en shards ordenados por el catálogo, dentro de `routes/ors_enriched/`. Cada registro incluye distancia y duración originales en m/s, geometría WGS84, `tollways`, `waycategory`, IDs estables, hashes y fecha de adquisición. `osmId` no fue devuelto por el servicio público en estas respuestas. La clasificación de segmentos es cartográfica, no una tarifa monetaria ni prueba de cobro.
+
+`routes/ors_enriched/manifest.json` enumera filas, unidades, atribución y SHA-256 de cada shard. El empaquetado se puede reproducir offline con `python -m experiments.export_tsp_spain_publication` si se conservan los snapshots originales locales y el análisis generado por `python -m experiments.analyze_tsp_ors_extras`.
+
+Las matrices `baseline_cost_v_10_eur.csv`, `baseline_cost_v_25_eur.csv` y `baseline_cost_v_50_eur.csv` calculan `v*T + combustible`. Son **BASELINE SIN COMPONENTE DE PEAJES**, no equivalen a rutas gratuitas ni a un costo económico total.

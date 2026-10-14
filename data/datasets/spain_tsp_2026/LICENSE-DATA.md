@@ -21,3 +21,10 @@ La guía OSMF de [atribución para bases de datos y motores de rutas](https://os
 El código del repositorio y los datos tienen avisos separados; este documento no concede licencia al código. El precio de combustible procede del Weekly Oil Bulletin de la Comisión Europea, publicado el 2026-10-08 y consultado el 2026-10-12; la unidad original EUR/1000 L se normaliza a EUR/L. `metadata.json` conserva fuente, fechas y hash del archivo fuente. La fecha efectiva de descarga no quedó registrada.
 
 No se incluyen tarifas de peaje. Un peaje desconocido no equivale a cero y este conjunto **no constituye una matriz de costo económico total**.
+
+
+## Geometrías y resultados Directions publicados
+
+Los shards de rutas y sus atributos `tollways`/`waycategory` son resultados de openrouteservice y se ofrecen conforme a la licencia de resultados CC BY-SA 4.0 indicada en los términos de HeiGIT consultados el 2026-10-12; atribución: **© openrouteservice by HeiGIT | Data from OpenStreetMap**. Los atributos de ruta pueden derivar de la base cartográfica de OpenStreetMap. Se mantiene por separado la atribución y el aviso ODbL de [OpenStreetMap](https://www.openstreetmap.org/copyright); CC BY-SA y ODbL son licencias distintas. El conjunto no contiene el extracto vial original de OSM. Si la clasificación de una distribución como base derivada de OSM activara obligaciones adicionales, estas se rigen por ODbL y deben cumplirse independientemente; no se afirma que la licencia ORS las sustituya.
+
+El empaquetado excluye instrucciones textuales innecesarias, encabezados de cuota, credenciales y los contenedores crudos. Mantiene geometría WGS84, segmentos extras, IDs y hashes necesarios para reproducir el análisis.
