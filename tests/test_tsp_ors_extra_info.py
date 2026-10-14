@@ -1,6 +1,7 @@
 """Respuestas ORS sintéticas: no constituyen evidencia vial real."""
 
 from dataclasses import replace
+from hashlib import sha256
 from io import BytesIO
 import json
 from pathlib import Path
@@ -8,7 +9,10 @@ import socket
 from urllib.error import HTTPError, URLError
 
 import pytest
+import numpy as np
 
+from experiments.acquire_tsp_routes import record_quarantined_failures
+from experiments.prioritize_tsp_direction_queue import exclude_quarantined, load_quarantined_pairs
 from experiments.analyze_tsp_ors_extras import analyze_saved_routes
 from src.tsp.cities import City
 from src.tsp.etl.acquisition import AcquisitionManager, AcquisitionRequest
@@ -29,7 +33,8 @@ def _response(*, enriched: bool = True, change_geometry: bool = False) -> dict:
     points = [[-3.0, 40.0], [-3.01, 40.0], [-3.02, 40.0],
               [-3.03, 40.01 if change_geometry else 40.0], [-3.04, 40.0]]
     props = {"summary": {"distance": 3000, "duration": 180},
-             "segments": [{"steps": [{"name": "AP-X", "distance": 3000}]}]}
+             "segments": [{"steps": [{"name": "AP-X", "ref": "AP-X", "distance": 3000,
+                                        "way_points": [0, 4]}]}]}
     if enriched:
         props["extras"] = {
             "tollways": {"values": [[0, 2, 0], [2, 4, 1]],
@@ -47,8 +52,9 @@ class _Response:
     status = 200
     headers = {}
 
-    def __init__(self, payload: dict):
+    def __init__(self, payload: dict, headers: dict | None = None):
         self.payload = payload
+        self.headers = headers or {}
 
     def read(self):
         return json.dumps(self.payload).encode()
@@ -81,6 +87,10 @@ def test_extra_sections_indices_and_unknown_monetary_toll():
     assert row["toll_sections"][0]["end_index"] == 4
     assert row["toll_cost_eur"] is None and row["toll_verification"] == "UNKNOWN"
     assert row["toll_sections"][0]["waycategory_names"] == ["Highway", "Tollways"]
+    assert row["toll_sections"][0]["instruction_names"] == ["AP-X"]
+    assert row["toll_sections"][0]["instruction_refs"] == ["AP-X"]
+    assert row["toll_sections"][0]["length_km_approx"] > 0
+    assert row["toll_sections"][0]["end_position_km_approx"] <= row["distance_km"]
     assert decode_waycategory_mask(0) == ()
 
 
@@ -96,7 +106,40 @@ def test_cartographic_zero_missing_extras_and_invalid_overlap():
     with pytest.raises(ValueError, match="sin extra_info"):
         analyze_geojson_extras(_response(enriched=False), required=("tollways",))
     response["features"][0]["properties"]["extras"]["tollways"]["values"] = [[0, 3, 0], [2, 4, 1]]
-    with pytest.raises(ValueError, match="solapados"):
+    with pytest.raises(ValueError, match="realmente solapados"):
+        analyze_geojson_extras(response, required=("tollways",))
+
+
+def test_extra_intervals_allow_shared_endpoints_and_mark_gaps_as_unknown():
+    response = _response()
+    extras = response["features"][0]["properties"]["extras"]
+    # [0,2] y [2,4] comparten vértice 2, pero no aristas; cubren toda la ruta.
+    extras["tollways"]["values"] = [[0, 2, 0], [2, 4, 1]]
+    complete = analyze_geojson_extras(response, required=("tollways",))[0]
+    assert complete["coverage"] == "complete_cartographic"
+    assert complete["extra_coverage"]["tollways"] == "complete"
+
+    # Falta la arista 1->2. Se conserva la sección conocida, pero no se infiere
+    # cobertura total ni tollways=0 para el tramo no clasificado.
+    extras["tollways"]["values"] = [[0, 1, 0], [2, 4, 1]]
+    partial = analyze_geojson_extras(response, required=("tollways",))[0]
+    assert partial["coverage"] == "partial_cartographic"
+    assert partial["extra_coverage"]["tollways"] == "partial"
+    assert partial["toll_distance_km"] is None
+    assert partial["toll_distance_summary_km"] == 2
+    assert partial["toll_segment_count"] == 1
+    assert any("no se infiere cero" in warning for warning in partial["warnings"])
+
+
+@pytest.mark.parametrize("values, message", [
+    ([[0, 3, 0], [2, 4, 1]], "realmente solapados"),
+    ([[0, 5, 0]], "fuera de geometría"),
+    ([[1, 4, 0], [0, 1, 1]], "desordenados"),
+])
+def test_extra_intervals_reject_true_overlap_out_of_bounds_and_disorder(values, message):
+    response = _response()
+    response["features"][0]["properties"]["extras"]["tollways"]["values"] = values
+    with pytest.raises(ValueError, match=message):
         analyze_geojson_extras(response, required=("tollways",))
 
 
@@ -120,6 +163,49 @@ def test_provider_sends_extra_info_and_rejects_incomplete_response():
                                    max_retries=0, max_http_requests=1, min_interval_seconds=0)
     with pytest.raises(ProviderError, match="enriquecida incompleta"):
         bad.fetch(request)
+
+
+def test_partial_extra_intervals_are_saved_without_claiming_complete_toll_coverage(tmp_path):
+    response = _response()
+    response["features"][0]["properties"]["extras"]["tollways"]["values"] = [
+        [0, 1, 0], [2, 4, 1],
+    ]
+    request = AcquisitionRequest(_city("valladolid", -4.7), _city("badajoz", -6.9),
+                                 extra_info=("tollways", "waycategory"))
+    provider = OpenRouteServiceProvider("synthetic-secret", opener=lambda *_a, **_k: _Response(response),
+                                        max_retries=0, max_http_requests=1, min_interval_seconds=0)
+    store = RouteStore(tmp_path / "routes", raw_dir=tmp_path / "raw")
+    summary = AcquisitionManager(provider, store).run([request], max_requests=1)
+
+    assert summary.acquired == 1 and summary.failed == 0
+    state = json.loads(store.state_path.read_text(encoding="utf-8"))["requests"]
+    record = next(iter(state.values()))
+    raw = json.loads(Path(record["raw_file"]).read_text(encoding="utf-8"))
+    analysis = analyze_geojson_extras(raw["response"], required=request.extra_info)[0]
+    assert analysis["coverage"] == "partial_cartographic"
+    assert analysis["toll_distance_km"] is None
+    assert analysis["toll_distance_summary_km"] == 2
+    assert raw["response"] == response
+
+
+def test_invalid_interval_diagnostic_records_received_http_200_as_processed(tmp_path):
+    response = _response()
+    response["features"][0]["properties"]["extras"]["tollways"]["values"] = [
+        [0, 3, 0], [2, 4, 1],
+    ]
+    request = AcquisitionRequest(_city("valladolid", -4.7), _city("badajoz", -6.9),
+                                 extra_info=("tollways", "waycategory"))
+    provider = OpenRouteServiceProvider("synthetic-secret", opener=lambda *_a, **_k: _Response(response),
+                                        max_retries=0, max_http_requests=1, min_interval_seconds=0)
+    store = RouteStore(tmp_path / "routes")
+    summary = AcquisitionManager(provider, store).run([request], max_requests=1)
+
+    assert summary.failed == 1 and summary.http_status_codes == (200,)
+    failure = summary.failures[0]
+    assert failure["category"] == "missing_extra_info"
+    assert failure["response_received"] is True
+    assert failure["provider_may_have_processed_request"] is True
+    assert failure["http_request_counted"] is True
 
 
 def test_provider_uses_heigit_effective_url_and_two_requested_extras():
@@ -164,6 +250,110 @@ def test_persistence_resume_and_geometry_comparison_offline(tmp_path: Path):
     assert rows[0]["first_different_coordinate_index"] == 3
     assert rows[0]["previous_geometry_sha256"] != rows[0]["geometry_sha256"]
     assert rows[0]["toll_verification"] == "UNKNOWN"
+
+
+def test_saved_analyzer_accepts_two_extras_and_skips_legacy_without_aborting(tmp_path: Path):
+    original = RouteStore(tmp_path / "original", raw_dir=tmp_path / "raw-original")
+    enriched = RouteStore(tmp_path / "enriched", raw_dir=tmp_path / "raw-enriched")
+    a, b = _city("a", -3), _city("b", -4)
+    legacy = AcquisitionRequest(a, b)
+    enhanced = replace(legacy, extra_info=("tollways", "waycategory"))
+    response = _response()
+    del response["features"][0]["properties"]["extras"]["osmId"]
+    provider = OpenRouteServiceProvider("synthetic-secret", opener=lambda *_a, **_k: _Response(response),
+                                        max_retries=0, max_http_requests=2, min_interval_seconds=0)
+    manager = AcquisitionManager(provider, enriched)
+    assert manager.run([legacy, enhanced], max_requests=2).acquired == 2
+    skipped = []
+    rows = analyze_saved_routes(enriched.root, enriched.raw_dir, original.root, skipped)
+    assert len(rows) == 1
+    assert rows[0]["extra_info_requested"] == ["tollways", "waycategory"]
+    assert rows[0]["extra_info_present"] == ["tollways", "waycategory"]
+    assert rows[0]["extra_info_status"]["osmid"] == "no_solicitado_ausente"
+    assert rows[0]["toll_verification"] == "UNKNOWN"
+    assert [item["status"] for item in skipped] == ["legacy_snapshot_without_extras"]
+
+
+def test_saved_analyzer_rejects_response_changed_after_snapshot_hash(tmp_path: Path):
+    store = RouteStore(tmp_path / "enriched")
+    request = AcquisitionRequest(_city("a", -3), _city("b", -4),
+                                 extra_info=("tollways", "waycategory"))
+    provider = OpenRouteServiceProvider("synthetic-secret", opener=lambda *_a, **_k: _Response(_response()),
+                                        max_retries=0, max_http_requests=1, min_interval_seconds=0)
+    assert AcquisitionManager(provider, store).run([request], max_requests=1).acquired == 1
+    state = json.loads(store.state_path.read_text(encoding="utf-8"))
+    raw_path = Path(next(iter(state["requests"].values()))["raw_file"])
+    raw = json.loads(raw_path.read_text(encoding="utf-8"))
+    raw["response"]["features"][0]["properties"]["summary"]["distance"] += 10
+    raw_path.write_text(json.dumps(raw), encoding="utf-8")
+
+    skipped = []
+    rows = analyze_saved_routes(store.root, store.raw_dir, tmp_path / "original", skipped)
+
+    assert rows == []
+    assert skipped[0]["status"] == "corrupt_snapshot"
+    assert "hash de respuesta" in skipped[0]["reason"]
+
+
+def test_saved_analyzer_reports_requested_but_missing_extra(tmp_path: Path):
+    cities = (_city("a", -3), _city("b", -4))
+    request = AcquisitionRequest(cities[0], cities[1], extra_info=("tollways", "waycategory"))
+    store = RouteStore(tmp_path / "enriched", raw_dir=tmp_path / "raw")
+    provider = OpenRouteServiceProvider("synthetic-secret", opener=lambda *_a, **_k: _Response(_response()),
+                                        max_retries=0, max_http_requests=1, min_interval_seconds=0)
+    assert AcquisitionManager(provider, store).run([request], max_requests=1).acquired == 1
+    state = json.loads(store.state_path.read_text(encoding="utf-8"))
+    key = next(iter(state["requests"]))
+    raw_path = Path(state["requests"][key]["raw_file"])
+    raw = json.loads(raw_path.read_text(encoding="utf-8"))
+    del raw["response"]["features"][0]["properties"]["extras"]["waycategory"]
+    raw["response_sha256"] = sha256(json.dumps(
+        raw["response"], sort_keys=True, ensure_ascii=False
+    ).encode("utf-8")).hexdigest()[:16]
+    raw_path.write_text(json.dumps(raw), encoding="utf-8")
+    skipped = []
+    rows = analyze_saved_routes(store.root, store.raw_dir, tmp_path / "original", skipped)
+    assert rows == []
+    assert skipped[0]["status"] == "requested_attribute_missing"
+    assert "waycategory" in skipped[0]["reason"]
+
+
+@pytest.mark.parametrize(("status", "reason"), [(403, "authentication_rejected"),
+                                                   (429, "rate_limited")])
+def test_acquisition_manager_stops_batch_on_provider_limit(tmp_path: Path, status: int,
+                                                           reason: str):
+    cities = (_city("a", -3), _city("b", -4), _city("c", -5))
+    requests = (AcquisitionRequest(cities[0], cities[1]),
+                AcquisitionRequest(cities[1], cities[2]))
+
+    def rate_limited(http_request, timeout):
+        raise HTTPError(http_request.full_url, status, "synthetic provider limit", {}, BytesIO(b"{}"))
+
+    provider = OpenRouteServiceProvider("synthetic-secret", opener=rate_limited, max_retries=0,
+                                        max_http_requests=2, min_interval_seconds=0)
+    summary = AcquisitionManager(provider, RouteStore(tmp_path / "routes")).run(
+        requests, max_requests=2)
+    assert summary.failed == 1 and summary.http_requests == 1
+    assert summary.stopped_reason == reason and summary.not_attempted == 1
+
+
+def test_enriched_queue_skips_only_valid_snapshots_with_requested_extras(tmp_path: Path, monkeypatch):
+    from experiments import plan_tsp_direction_queue as queue
+    cities = (_city("a", -3), _city("b", -4))
+    monkeypatch.setattr(queue, "load_published_dataset", lambda _: {
+        "city_order": ("a", "b"), "duration_hours": np.array([[0., 1.], [2., 0.]])})
+    monkeypatch.setattr(queue, "load_city_catalog", lambda: cities)
+    store = RouteStore(tmp_path / "enriched", raw_dir=tmp_path / "raw")
+    response = _response()
+    del response["features"][0]["properties"]["extras"]["osmId"]
+    request = AcquisitionRequest(cities[0], cities[1], extra_info=("tollways", "waycategory"))
+    provider = OpenRouteServiceProvider("synthetic-secret", opener=lambda *_a, **_k: _Response(response),
+        max_retries=0, max_http_requests=1, min_interval_seconds=0)
+    assert AcquisitionManager(provider, store).run([request], max_requests=1).acquired == 1
+    rows = queue.plan_enriched_queue(tmp_path / "dataset", store.root, store.raw_dir)
+    assert [(row["origin_id"], row["destination_id"]) for row in rows] == [("b", "a")]
+    assert rows[0]["request_id"] == AcquisitionRequest(
+        cities[1], cities[0], extra_info=("tollways", "waycategory")).request_id
 
 
 def test_http_504_is_recorded_and_can_resume_without_hidden_retry(tmp_path: Path):
@@ -355,5 +545,83 @@ def test_ors_persistence_failure_after_http_200_is_separated_from_transport(tmp_
     assert failure["category"] == "persistence_error"
     assert failure["stage"] == "persistence" and failure["http_status_code"] == 200
     assert failure["http_request_counted"] is True
-    assert "disk error" not in diagnostic["message"]
+    assert diagnostic["persistence_exception_type"] == "OSError"
+    assert "disk error" in diagnostic["persistence_message"]
     assert "synthetic-api-secret" not in json.dumps(diagnostic)
+
+
+def test_failed_arcs_are_quarantined_and_remain_pending_recovery(tmp_path):
+    path = tmp_path / "quarantine_pairs.json"
+    record_quarantined_failures(path, ({
+        "origin_id": "segovia", "destination_id": "avila", "category": "timeout",
+        "diagnostic_file": "diagnostics/timeout.json", "http_status_code": None,
+    },))
+    quarantine = load_quarantined_pairs(path)
+    assert ("segovia", "avila") in quarantine
+    rows = [
+        {"origin_id": "segovia", "destination_id": "avila"},
+        {"origin_id": "madrid", "destination_id": "toledo"},
+    ]
+    selected, recovery = exclude_quarantined(rows, set(quarantine))
+    assert [(row["origin_id"], row["destination_id"]) for row in selected] == [
+        ("madrid", "toledo")]
+    assert [(row["origin_id"], row["destination_id"]) for row in recovery] == [
+        ("segovia", "avila")]
+
+
+def test_invalid_quarantine_fails_closed(tmp_path):
+    path = tmp_path / "quarantine_pairs.json"
+    path.write_text("{broken", encoding="utf-8")
+    with pytest.raises(ValueError, match="evitar repetir fallos"):
+        load_quarantined_pairs(path)
+
+
+def test_rate_limit_headers_are_persisted_and_zero_remaining_stops_batch(tmp_path):
+    calls = []
+
+    def limited(*_args, **_kwargs):
+        calls.append(1)
+        return _Response(_response(), {"x-ratelimit-limit": "2000",
+                                       "x-ratelimit-remaining": "0",
+                                       "x-ratelimit-reset": "1791926400"})
+
+    requests = [
+        AcquisitionRequest(_city("a", -3), _city("b", -4),
+                           extra_info=("tollways", "waycategory")),
+        AcquisitionRequest(_city("a", -3), _city("c", -5),
+                           extra_info=("tollways", "waycategory")),
+    ]
+    store = RouteStore(tmp_path / "quota-routes")
+    provider = OpenRouteServiceProvider("synthetic-api-secret", opener=limited,
+        max_retries=0, max_http_requests=2, min_interval_seconds=0)
+    summary = AcquisitionManager(provider, store).run(requests, max_requests=2)
+    saved = json.loads(Path(store._state()["requests"][
+        f"{provider.cache_namespace}:{requests[0].request_id}"]["raw_file"]).read_text(encoding="utf-8"))
+    assert summary.acquired == 1 and summary.not_attempted == 1
+    assert summary.stopped_reason == "provider_reported_no_remaining_quota"
+    assert summary.http_requests == 1 and len(calls) == 1
+    assert saved["request"]["acquisition"]["rate_limit_headers"][
+        "x-ratelimit-remaining"] == "0"
+
+
+def test_daily_quota_budget_stops_retry_without_exceeding_http_attempts(tmp_path):
+    calls = []
+
+    def failing(*_args, **_kwargs):
+        calls.append(1)
+        raise HTTPError("https://fixture.invalid", 502, "bad gateway", {}, BytesIO(b"{}"))
+
+    provider = OpenRouteServiceProvider(
+        "synthetic-secret", opener=failing, sleep=lambda _seconds: None,
+        max_retries=3, max_http_requests=10, min_interval_seconds=0,
+    )
+    request = AcquisitionRequest(_city("a", -3), _city("b", -4),
+                                 extra_info=("tollways", "waycategory"))
+    summary = AcquisitionManager(
+        provider, RouteStore(tmp_path / "daily-quota-retry"), daily_quota=1,
+    ).run([request], max_requests=1)
+
+    assert len(calls) == 1
+    assert summary.http_requests == 1
+    assert summary.stopped_reason == "http_budget_exhausted"
+    assert summary.failures[0]["category"] == "http_budget_exhausted"

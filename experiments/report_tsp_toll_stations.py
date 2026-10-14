@@ -30,7 +30,8 @@ def run_report(inventory: Path, route_store: Path, output: Path, *, radius_m: fl
     routes = tuple(sorted(routes, key=lambda route: (route.origin_id, route.destination_id)))
     enriched_path = enriched_routes or Path("data/processed/tolls/ors_extra_info/enriched_routes.json")
     enriched = _load_enriched(enriched_path)
-    segments_by_route = {key: tuple(tuple(tuple(point) for point in section["geometry_coordinates"])
+    segments_by_route = {row["previous_route_id"]: tuple(
+                            tuple(tuple(point) for point in section["geometry_coordinates"])
                             for section in row.get("toll_sections", [])
                             if len(section.get("geometry_coordinates", [])) >= 2)
                          for row in enriched
@@ -72,7 +73,7 @@ def _write_overpass_plan(path: Path, stations, matches) -> None:
              "radius_m": 100, "http_budget": 1, "status": "pending"},
         ],
         "limitations": ["No se ejecutaron consultas.",
-            "Los IDs extra_info de ORS reales aún no existen en el almacenamiento local.",
+            "Las respuestas ORS actuales no contienen osmId porque no fue solicitado; solo aportan tollways y waycategory.",
             "Una búsqueda alrededor de estaciones no confirma el paso ni cubre todos los accesos."],
     }
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -147,6 +148,12 @@ def _write_review_geojson(path: Path, stations, routes, matches, enriched) -> No
                     "segment_index": segment_index, "start_index": section.get("start_index"),
                     "end_index": section.get("end_index"), "osm_way_ids": section.get("osm_way_ids", []),
                     "waycategory_names": section.get("waycategory_names", []),
+                    "instruction_names": section.get("instruction_names", []),
+                    "instruction_refs": section.get("instruction_refs", []),
+                    "start_position_km_approx": section.get("start_position_km_approx"),
+                    "end_position_km_approx": section.get("end_position_km_approx"),
+                    "length_km_approx": section.get("length_km_approx"),
+                    "position_method": section.get("position_method"),
                     "classification": "ORS tollways=1; cartographic evidence only",
                     "toll_verification": "UNKNOWN"}})
     for station in stations:
@@ -220,11 +227,11 @@ def _make_summary(stations, routes, matches, radius_m: float) -> str:
         + ", ".join(OFFICIAL_AP68_STATIONS) + ". El PDF publica 39,90 € para Bilbao–Zaragoza en esa tabla, vigente desde 2026-01-01; el valor es la tarifa del par nominal, no una tarifa asignada automáticamente a estas geometrías.",
         "En el snapshot local, solo dos objetos OSM tienen nombre: ambos dicen Peaje de Alagon. La semejanza con ‘Alagón 272’ es candidata de nombre y zona, no correspondencia validada de entrada/salida. Los otros nodos no tienen nombre ni referencia, por lo que requieren consulta puntual de etiquetas y contraste con mapa oficial/operador.",
         "", "## Madrid–Toledo", "",
-        "La geometría rápida local se conserva y muestra las referencias de ruta; no hay extras ORS reales que segmenten tollways/OSM IDs. Referencias ausentes o que no mencionen AP-41 no prueban peaje cero. Se necesita extra_info y contraste integral del recorrido con fuentes oficiales, incluidas vías de acceso.",
+        "ORS extra_info real marca toda la geometría de Madrid–Toledo con tollways=0 (0.00 km señalados como peaje). Esto es evidencia cartográfica útil para análisis exploratorio, pero no certifica peaje monetario cero: faltan cobertura independiente completa de concesiones/accesos y verificación documental del recorrido.",
         "", "## Limitaciones y siguiente evidencia", "",
         "- El inventario cubre solo las regiones Overpass adquiridas: no es un censo. Hay una región fallida HTTP 504 y 32 pendientes según el manifiesto persistido.",
         "- La proximidad se computa al polyline completa con radio de búsqueda configurable; no se adjudica tránsito a partir de esa distancia.",
-        "- Falta ORS extra_info real para las tres rutas. Sus atributos describen secciones y way IDs del grafo, no cabinas ni tarifas.",
+        "- ORS extra_info está disponible para las tres rutas. Marca segmentos tollways y categorías, pero no devuelve estaciones ni tarifas; osmId no fue solicitado en estos snapshots.",
         "- Para verificar cobro: vincular vía/estación con entrada, salida, sentido, clase ligera, tarifa ordinaria, vigencia (2026-10-12), y confirmar que no haya otro peaje fuera de AP-68.",
         "- No se asigna tarifa monetaria ni `VERIFIED_ZERO` a ninguna ruta.",
         "- Las filas OSM se derivan de OpenStreetMap y permanecen en directorios locales ignorados por Git hasta cerrar la revisión de licencia/redistribución.", ""])

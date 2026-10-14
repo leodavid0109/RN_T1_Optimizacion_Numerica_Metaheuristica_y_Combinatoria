@@ -30,4 +30,5 @@ def test_animate_escribe_gifs(tmp_path):
     main(["--config", "configs/anim.yaml", "--figures", str(tmp_path),
           "--set", "presupuesto=200", "--set", "max_cuadros=5", "--set", "funciones=[rastrigin]"])
     nombres = sorted(f.name for f in tmp_path.glob("*.gif"))
-    assert nombres == ["anim_de_rastrigin.gif", "anim_gd_rastrigin.gif", "anim_pso_rastrigin.gif"]
+    assert nombres == ["anim_de_rastrigin.gif", "anim_ea_rastrigin.gif",
+                       "anim_gd_rastrigin.gif", "anim_pso_rastrigin.gif"]

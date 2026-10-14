@@ -106,6 +106,40 @@ def main(argv: list[str] | None = None) -> int:
     )
     args.output_dir.mkdir(parents=True, exist_ok=True)
     payload = coverage_report_as_dict(report)
+    enriched_report = args.output_dir / "ors_extra_info" / "enriched_routes.json"
+    enriched_rows = []
+    if enriched_report.exists():
+        enriched_payload = json.loads(enriched_report.read_text(encoding="utf-8"))
+        enriched_rows = enriched_payload.get("routes", [])
+    station_candidates = args.output_dir / "station_review" / "station_route_candidates.csv"
+    station_candidate_rows = []
+    if station_candidates.exists():
+        with station_candidates.open(encoding="utf-8-sig", newline="") as stream:
+            station_candidate_rows = list(csv.DictReader(stream))
+    payload["coverage"].update({
+        "arcs_with_enriched_geometry": len({(row["origin_id"], row["destination_id"])
+                                             for row in enriched_rows}),
+        "enriched_routes_with_toll_segments": sum(
+            int(row.get("toll_segment_count", 0)) > 0 for row in enriched_rows),
+        "enriched_routes_without_toll_segments_detected": sum(
+            int(row.get("toll_segment_count", 0)) == 0 for row in enriched_rows),
+        "ors_toll_segment_observations": sum(int(row.get("toll_segment_count", 0))
+                                              for row in enriched_rows),
+        "ors_toll_distance_km_directed_observations": sum(
+            float(row["toll_distance_km"]) for row in enriched_rows
+            if row.get("toll_distance_km") is not None),
+        "enriched_routes_with_osm_ids": sum(bool(row.get("osm_way_ids"))
+                                             for row in enriched_rows),
+        "station_candidate_relations": len(station_candidate_rows),
+        "arcs_with_officially_verified_toll": report.arcs_with_verified_tariff,
+        "arcs_with_exploratory_toll_estimate": 0,
+        "arcs_with_unknown_toll": report.expected_directed_arcs,
+    })
+    payload["notes"].extend([
+        "ORS tollways describe provider map classification, not a monetary charge or station passage.",
+        "A route with zero tollways segments remains UNKNOWN until independent complete-route evidence verifies no toll.",
+        "Directed toll-distance observations sum forward and reverse routes separately and must not be interpreted as unique road coverage.",
+    ])
     if args.economic_arcs.exists():
         with args.economic_arcs.open(encoding="utf-8", newline="") as stream:
             economic_rows = list(csv.DictReader(stream))

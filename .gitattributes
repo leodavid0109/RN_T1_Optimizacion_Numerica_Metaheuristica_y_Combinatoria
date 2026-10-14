@@ -1,2 +1,3 @@
 # Dataset checksums are byte-level; preserve their LF/JSONL/gzip bytes across platforms.
 data/datasets/spain_tsp_2026/** -text
+data/datasets/spain_tsp_economic_20261013/** -text

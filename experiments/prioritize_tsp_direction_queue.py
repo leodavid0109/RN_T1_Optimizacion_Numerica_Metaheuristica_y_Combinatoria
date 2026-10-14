@@ -13,7 +13,7 @@ from pathlib import Path
 
 import numpy as np
 
-from experiments.plan_tsp_direction_queue import plan_queue
+from experiments.plan_tsp_direction_queue import plan_enriched_queue, plan_queue
 from src.tsp import AntSystem, City, TSPProblem
 from src.tsp.baselines import NearestNeighbor, NearestNeighborTwoOpt
 from src.tsp.etl.dataset_export import load_published_dataset
@@ -27,6 +27,27 @@ CORRIDOR_HINTS = {
     frozenset(("asturias", "leon")): "AP-66; hipótesis por extremos",
     frozenset(("a_coruna", "pontevedra")): "AP-9; hipótesis por extremos",
 }
+
+
+def load_quarantined_pairs(path: Path) -> dict[tuple[str, str], dict]:
+    """Carga pares fallidos; un manifiesto inválido detiene el lote de forma segura."""
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        # HTTP 200 con fallo de escritura debe volver a la cola de recuperación
+        # de almacenamiento; excluirlo como fallo de ruta ocultaría una respuesta perdida.
+        return {(str(row["origin_id"]), str(row["destination_id"])): row
+                for row in data.get("pairs", [])
+                if row.get("reason") != "persistence_error"}
+    except (OSError, json.JSONDecodeError, TypeError, KeyError) as exc:
+        raise ValueError(f"cuarentena inválida; se detiene para evitar repetir fallos: {exc}") from exc
+
+
+def exclude_quarantined(rows: list[dict], pairs: set[tuple[str, str]]) -> tuple[list[dict], list[dict]]:
+    recovery = [row for row in rows if (row["origin_id"], row["destination_id"]) in pairs]
+    selected = [row for row in rows if (row["origin_id"], row["destination_id"]) not in pairs]
+    return selected, recovery
 
 
 def rank_missing_arcs(missing: list[dict], tours: list[dict]) -> list[dict]:
@@ -92,11 +113,28 @@ def build_candidate_tours(dataset_dir: Path, *, seed: int = 42) -> list[dict]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset", type=Path, default=Path("data/datasets/spain_tsp_2026"))
-    parser.add_argument("--routes", type=Path, default=Path("data/processed/routes"))
+    parser.add_argument("--routes", type=Path)
+    parser.add_argument("--raw-routes", type=Path)
+    parser.add_argument("--extra-info", default="",
+                        help="prioriza únicamente arcos sin snapshot válido con estos extras")
     parser.add_argument("--output", type=Path, default=Path("data/processed/tolls/prioritized_queue"))
+    parser.add_argument("--quarantine-file", type=Path,
+                        default=Path("data/processed/tolls/prioritized_queue/quarantine_pairs.json"),
+                        help="pares fallidos que quedan fuera de lotes generales hasta revisión explícita")
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args(argv)
-    missing = plan_queue(args.dataset, args.routes)
+    extra_info = tuple(part.strip() for part in args.extra_info.split(",") if part.strip())
+    route_root = args.routes or (Path("data/processed/routes/enriched") if extra_info
+                                 else Path("data/processed/routes"))
+    raw_root = args.raw_routes or (Path("data/raw/routes/enriched") if extra_info
+                                   else Path("data/raw/routes"))
+    missing = (plan_enriched_queue(args.dataset, route_root, raw_root, extra_info=extra_info)
+               if extra_info else plan_queue(args.dataset, route_root))
+    try:
+        quarantine = load_quarantined_pairs(args.quarantine_file)
+    except ValueError as exc:
+        parser.error(str(exc))
+    missing, quarantined_rows = exclude_quarantined(missing, set(quarantine))
     tours = build_candidate_tours(args.dataset, seed=args.seed)
     rows = rank_missing_arcs(missing, tours)
     args.output.mkdir(parents=True, exist_ok=True)
@@ -107,12 +145,15 @@ def main(argv: list[str] | None = None) -> int:
     manifest = {"scenario": "auxiliar: tiempo y combustible; peajes excluidos",
                 "rule": "100*frecuencia + 10*hipótesis_corredor + min(horas_Matrix,10)",
                 "universe": 2162, "existing_geometries": 2162 - len(rows),
-                "pending": len(rows), "candidate_tours": tours,
+                "extra_info_required": list(extra_info),
+                "pending": len(rows), "quarantined_pending_recovery": quarantined_rows,
+                "quarantine_file": str(args.quarantine_file), "candidate_tours": tours,
                 "top20": rows[:20], "http_requests": 0,
                 "note": "Prioridad de adquisición, no ruta óptima económica global."}
     (args.output / "priority_manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"pending": len(rows), "candidate_tours": len(tours),
+    print(json.dumps({"pending": len(rows), "quarantined_pending_recovery": len(quarantined_rows),
+                      "candidate_tours": len(tours),
                       "top20": [{"arc": f"{r['origin_id']}->{r['destination_id']}",
                                  "frequency": r["candidate_tour_frequency"],
                                  "methods": r["methods"], "hint": r["possible_toll_corridor_hint"]}

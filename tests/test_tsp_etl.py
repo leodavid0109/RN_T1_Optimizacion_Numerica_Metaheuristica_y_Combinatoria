@@ -2,10 +2,12 @@
 
 import csv
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 import json
 from pathlib import Path
+import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -20,6 +22,7 @@ from src.tsp.etl import (
 from src.tsp.etl.matrices import build_fuel_matrix, load_complete_matrix, rebuild_matrix_snapshot
 from src.tsp.etl.matrix_validation import compare_matrix_to_directions
 from src.tsp.etl.config import normalize_ors_endpoint
+from src.tsp.etl.store import PersistenceError
 
 
 def _city(city_id: str, lat: float, lon: float) -> City:
@@ -388,6 +391,155 @@ def test_acquisition_resumes_without_duplicate_calls_and_records_failures(tmp_pa
         manager.run([request], max_requests=0)
 
 
+def test_route_store_handles_large_geometry_fields_across_120_acquisitions(tmp_path):
+    class Provider:
+        provider_name = "large-geometry"
+        profile = "car"
+        http_requests_made = 0
+        http_status_codes = []
+
+        def fetch(self, request):
+            self.http_requests_made += 1
+            self.http_status_codes.append(200)
+            route = _alternative(request.origin.city_id, request.destination.city_id,
+                                 f"alt-{self.http_requests_made}")
+            if self.http_requests_made == 1:
+                route = replace(route, geometry_lon_lat=tuple(
+                    (index / 100_000, index / 200_000) for index in range(9000)
+                ))
+            return {"url": "synthetic://ors"}, {"type": "synthetic"}, (route,)
+
+    requests = [
+        AcquisitionRequest(_city(f"o{i}", 40, -3), _city(f"d{i}", 41, -4))
+        for i in range(120)
+    ]
+    provider = Provider()
+    store = RouteStore(tmp_path / "processed", raw_dir=tmp_path / "raw")
+    summary = AcquisitionManager(provider, store).run(requests, max_requests=120)
+
+    assert (summary.acquired, summary.failed, summary.http_requests) == (120, 0, 120)
+    assert len(store.load_alternatives()) == 120
+    assert len(list((tmp_path / "raw").glob("*.json"))) == 120
+
+
+def test_persistence_failure_keeps_raw_response_and_stops_the_batch(tmp_path, monkeypatch):
+    class Provider:
+        provider_name = "write-failure"
+        profile = "car"
+        http_requests_made = 0
+        http_status_codes = []
+
+        def fetch(self, request):
+            self.http_requests_made += 1
+            self.http_status_codes.append(200)
+            route = _alternative(request.origin.city_id, request.destination.city_id, "fast")
+            return {"url": "synthetic://ors"}, _ors_response(), (route,)
+
+    import src.tsp.etl.store as store_module
+
+    def fail_index_write(path, *args, **kwargs):
+        if path.name == "route_alternatives.csv":
+            raise PermissionError("sharing violation during atomic replacement")
+        raise AssertionError(f"unexpected CSV write: {path}")
+
+    monkeypatch.setattr(store_module, "_write_csv_atomic", fail_index_write)
+    provider = Provider()
+    store = RouteStore(tmp_path / "processed", raw_dir=tmp_path / "raw")
+    requests = [
+        AcquisitionRequest(_city(f"o{i}", 40, -3), _city(f"d{i}", 41, -4))
+        for i in range(3)
+    ]
+    summary = AcquisitionManager(provider, store).run(requests, max_requests=3)
+
+    assert (summary.acquired, summary.failed, summary.not_attempted) == (0, 1, 2)
+    assert summary.http_requests == 1
+    assert summary.stopped_reason == "persistence_error"
+    failure = summary.failures[0]
+    assert failure["category"] == "persistence_error"
+    assert failure["stage"] == "persistence"
+    assert failure["http_status_code"] == 200
+    diagnostic_path = Path(failure["diagnostic_file"])
+    diagnostic = json.loads(diagnostic_path.read_text(encoding="utf-8"))
+    assert diagnostic["persistence_exception_type"] == "PermissionError"
+    assert diagnostic["persistence_stage"] == "index_write"
+    assert diagnostic["persistence_operation"] == "update_route_index"
+    assert diagnostic["raw_response_available"] is True
+    assert diagnostic["offline_recovery_possible"] is True
+    assert provider.http_requests_made == 1
+    assert len(list((tmp_path / "raw").glob("*.json"))) == 1
+
+
+def test_connection_refused_stops_batch_and_is_not_marked_as_provider_processed():
+    class Provider:
+        provider_name = "connection-refused-test"
+        profile = "driving-car"
+        endpoint = "https://api.heigit.org/openrouteservice/v2/directions"
+        http_requests_made = 0
+        http_status_codes = []
+
+        def fetch(self, request):
+            self.http_requests_made += 1
+            raise ProviderError("el proveedor o proxy rechazó la conexión",
+                                category="connection_refused", stage="transport")
+
+    class MemoryStore:
+        diagnostics = []
+
+        def request_succeeded(self, request_id):
+            return False
+
+        def save_failure(self, request_id, exc_type, *, http_requests, http_status_codes, diagnostic):
+            self.diagnostics.append(diagnostic)
+            return "synthetic-diagnostic.json"
+
+    provider = Provider()
+    store = MemoryStore()
+    requests = [AcquisitionRequest(_city(f"o{i}", 40, -3), _city(f"d{i}", 41, -4))
+                for i in range(3)]
+    summary = AcquisitionManager(provider, store).run(requests, max_requests=3)
+
+    assert summary.failed == 1
+    assert summary.http_requests == 1
+    assert summary.not_attempted == 2
+    assert summary.stopped_reason == "connection_refused"
+    assert summary.failures[0]["provider_may_have_processed_request"] is False
+
+
+def test_offline_recovery_rebuilds_catalog_and_state_from_raw_response(tmp_path):
+    raw_dir = tmp_path / "raw"
+    store = RouteStore(tmp_path / "processed", raw_dir=raw_dir)
+    request = AcquisitionRequest(_city("x", 40, -3), _city("y", 41, -4))
+    namespaced_id = f"fake:driving-car:{request.request_id}"
+    safe_request = {
+        "method": "POST", "url": "synthetic://ors/driving-car/geojson",
+        "body": {"coordinates": [[-3, 40], [-4, 41]]},
+        "acquisition": {
+            "request_id": namespaced_id, "origin_id": "x", "destination_id": "y",
+            "profile": "driving-car", "strategy": "fastest",
+            "fastest_route_id": request.fastest_route_id("driving-car"),
+            "is_primary_fastest": True, "extra_info": [],
+            "acquired_at": "2026-10-13T12:00:00+00:00",
+        },
+    }
+    response = _ors_response()
+    response_hash = sha256(json.dumps(response, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:16]
+    raw_record = {"schema_version": 1, "request_id": namespaced_id,
+                  "request": safe_request, "response": response,
+                  "response_sha256": response_hash}
+    raw_file = raw_dir / f"{namespaced_id.replace(':', '_')}_{response_hash}.json"
+    raw_file.write_text(json.dumps(raw_record), encoding="utf-8")
+
+    first = store.recover_unindexed_raw_snapshots()
+    second = store.recover_unindexed_raw_snapshots()
+
+    assert first == {"recovered": 1, "skipped_existing": 0, "skipped_legacy": 0, "invalid": 0}
+    assert second["recovered"] == 0
+    assert second["skipped_existing"] == 1
+    assert store.request_succeeded(namespaced_id)
+    assert len(store.load_alternatives()) == 2
+    assert raw_file.exists()
+
+
 def test_acquisition_checks_daily_quota_before_any_network_call(tmp_path):
     class Provider:
         provider_name = "quota-test"
@@ -402,9 +554,159 @@ def test_acquisition_checks_daily_quota_before_any_network_call(tmp_path):
     request = AcquisitionRequest(_city("x", 1, 1), _city("y", 2, 2))
     reverse = AcquisitionRequest(_city("y", 2, 2), _city("x", 1, 1))
     manager = AcquisitionManager(provider, RouteStore(tmp_path), daily_quota=1)
-    with pytest.raises(ValueError, match="cuota restante"):
+    with pytest.raises(ValueError, match="ventana móvil de 24 horas"):
         manager.run([request, reverse], max_requests=2)
     assert provider.calls == 0
+
+
+def test_quota_counts_http_failures_and_keeps_provider_namespaces_separate(tmp_path):
+    store = RouteStore(tmp_path / "quota-history")
+    day = datetime.now(timezone.utc).date().isoformat()
+    success_id = "ors:profile-a:endpoint-x:success"
+    other_id = "ors:profile-b:endpoint-y:success"
+    failure_id = "ors:profile-a:endpoint-x:failed"
+    raw_success = tmp_path / "quota-history" / "success.json"
+    raw_other = tmp_path / "quota-history" / "other.json"
+    raw_success.write_text(json.dumps({"request": {"acquisition": {"http_requests": 3}}}),
+                           encoding="utf-8")
+    raw_other.write_text(json.dumps({"request": {"acquisition": {"http_requests": 2}}}),
+                         encoding="utf-8")
+    store._write_state({"schema_version": 1, "requests": {
+        success_id: {"status": "adquirida", "acquired_on": day, "raw_file": str(raw_success)},
+        other_id: {"status": "adquirida", "acquired_on": day, "raw_file": str(raw_other)},
+        failure_id: {"status": "error", "failed_at": f"{day}T12:00:00+00:00",
+                     "http_requests": 2, "diagnostic_file": "failed.json"},
+    }})
+    diagnostics = store.root / "diagnostics"
+    diagnostics.mkdir()
+    (diagnostics / "failed.json").write_text(json.dumps({
+        "request_id": failure_id, "failed_at": f"{day}T12:00:00+00:00", "http_requests": 2,
+    }), encoding="utf-8")
+
+    assert store.count_http_requests_on(day, "ors:profile-a:endpoint-x:") == 5
+    assert store.count_http_requests_on(day, "ors:profile-b:endpoint-y:") == 2
+
+
+def test_switching_api_key_does_not_reset_shared_provider_quota(tmp_path):
+    day = datetime.now(timezone.utc).date().isoformat()
+
+    class Provider:
+        provider_name = "openrouteservice"
+        profile = "driving-car"
+        cache_namespace = "openrouteservice:driving-car:endpoint-test"
+
+        def __init__(self, api_key):
+            self.api_key = api_key
+            self.calls = 0
+
+        def fetch(self, request):
+            self.calls += 1
+            return {}, {}, (_alternative(request.origin.city_id, request.destination.city_id, "fast"),)
+
+    store = RouteStore(tmp_path / "shared-key-quota")
+    first = AcquisitionRequest(_city("a", 1, 1), _city("b", 2, 2))
+    second = AcquisitionRequest(_city("a", 1, 1), _city("c", 3, 3))
+    provider_one = Provider("key-one-not-persisted")
+    AcquisitionManager(provider_one, store, daily_quota=1).run([first], max_requests=1)
+
+    provider_two = Provider("key-two-not-persisted")
+    with pytest.raises(ValueError, match=r"ventana móvil de 24 horas \(0\)"):
+        AcquisitionManager(provider_two, store, daily_quota=1).run([second], max_requests=1)
+    assert provider_one.calls == 1
+    assert provider_two.calls == 0
+    assert store.count_http_requests_on(day, provider_one.cache_namespace + ":") == 1
+
+
+def test_rolling_quota_window_counts_only_events_inside_last_24_hours(tmp_path):
+    store = RouteStore(tmp_path / "rolling-window")
+    now = datetime.now(timezone.utc)
+    prefix = "ors:driving-car:endpoint:"
+    old_id, recent_id, failed_id = prefix + "old", prefix + "recent", prefix + "failed"
+    old_raw = tmp_path / "rolling-window" / "old.json"
+    recent_raw = tmp_path / "rolling-window" / "recent.json"
+    old_raw.write_text(json.dumps({"request": {"acquisition": {
+        "acquired_at": (now - timedelta(hours=25)).isoformat(), "http_requests": 3,
+    }}}), encoding="utf-8")
+    recent_raw.write_text(json.dumps({"request": {"acquisition": {
+        "acquired_at": (now - timedelta(hours=23)).isoformat(), "http_requests": 2,
+    }}}), encoding="utf-8")
+    store._write_state({"schema_version": 1, "requests": {
+        old_id: {"status": "adquirida", "acquired_on": (now - timedelta(days=1)).date().isoformat(),
+                 "raw_file": str(old_raw)},
+        recent_id: {"status": "adquirida", "acquired_on": now.date().isoformat(),
+                    "raw_file": str(recent_raw)},
+        failed_id: {"status": "error", "failed_at": (now - timedelta(hours=23)).isoformat(),
+                    "http_requests": 2},
+    }})
+    diagnostics = store.root / "diagnostics"
+    diagnostics.mkdir()
+    (diagnostics / "failed.json").write_text(json.dumps({
+        "request_id": failed_id, "failed_at": (now - timedelta(hours=23)).isoformat(),
+        "http_requests": 2,
+    }), encoding="utf-8")
+
+    assert store.count_http_requests_since(now - timedelta(hours=24), prefix) == 4
+
+
+def test_daily_quota_caps_http_retries_to_remaining_attempt_budget(tmp_path):
+    class Provider:
+        provider_name = "quota-test"
+        profile = "car"
+        cache_namespace = "quota-test:car:shared"
+        max_http_requests = 20
+        http_requests_made = 0
+
+        def fetch(self, request):
+            self.http_requests_made += 1
+            return {}, {}, (_alternative(request.origin.city_id, request.destination.city_id, "fast"),)
+
+    request = AcquisitionRequest(_city("a", 1, 1), _city("b", 2, 2))
+    provider = Provider()
+    manager = AcquisitionManager(provider, RouteStore(tmp_path / "quota-cap"), daily_quota=1)
+    manager.run([request], max_requests=1)
+    assert provider.max_http_requests == 1
+
+
+def test_directions_cli_does_not_pool_local_daily_quota_by_default(monkeypatch, tmp_path):
+    import experiments.acquire_tsp_routes as cli
+
+    captured = {}
+    config = SimpleNamespace(
+        profile="driving-car",
+        directions_endpoint="https://api.heigit.org/openrouteservice/v2/directions",
+        timeout_seconds=30.0,
+        max_retries=2,
+        minimum_seconds_between_requests=2.0,
+        route_catalog=tmp_path / "routes.json",
+        raw_responses=tmp_path / "raw",
+    )
+
+    class Provider:
+        def __init__(self, **kwargs):
+            captured["provider_kwargs"] = kwargs
+
+    class Manager:
+        def __init__(self, provider, store, *, daily_quota=None):
+            captured["daily_quota"] = daily_quota
+
+        def run(self, requests, *, max_requests, refresh=False):
+            captured["requests"] = requests
+            return SimpleNamespace(failed=0, failures=())
+
+    monkeypatch.setattr(sys, "argv", [
+        "acquire_tsp_routes", "--pairs", "x:y", "--max-requests", "1",
+        "--max-http-requests", "1", "--max-retries", "0", "--execute",
+        "--store", str(tmp_path / "store"), "--raw-dir", str(tmp_path / "raw"),
+    ])
+    monkeypatch.setattr(cli, "load_etl_config", lambda _path: config)
+    monkeypatch.setattr(cli, "load_city_catalog", lambda _path: (_city("x", 1, 1), _city("y", 2, 2)))
+    monkeypatch.setattr(cli, "OpenRouteServiceProvider", Provider)
+    monkeypatch.setattr(cli, "RouteStore", lambda *args, **kwargs: object())
+    monkeypatch.setattr(cli, "AcquisitionManager", Manager)
+
+    assert cli.main() == 0
+    assert captured["daily_quota"] is None
+    assert len(captured["requests"]) == 1
 
 
 def test_matrix_builder_keeps_direction_and_does_not_turn_unknown_tolls_into_zero(tmp_path):

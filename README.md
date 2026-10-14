@@ -1,123 +1,135 @@
-# Trabajo 1 · Optimización Numérica, Metaheurística y Combinatoria
+# Del gradiente a las hormigas: optimización numérica, metaheurística y combinatoria
 
-Redes Neuronales y Algoritmos Bioinspirados · UNAL, Facultad de Minas · 2026-02
+**Trabajo 1 — Redes Neuronales y Algoritmos Bioinspirados**
+Universidad Nacional de Colombia · Facultad de Minas · semestre 2026-02
 
 ## Integrantes
+
 - Leonard David Vivas Dallos
 - José Nicolás Duque Linares
 - Sebastian Estrada Villa
 
-## Contenido
+## Propósito
 
-- **Parte 1:** Descenso por gradiente frente a algoritmo evolutivo, PSO y evolución diferencial, sobre dos funciones de prueba en 2D y 3D.
-- **Parte 2:** Problema del viajero sobre las 47 capitales peninsulares de España, con colonia de hormigas y algoritmo genético.
-$
-\text{Costo} = \text{valor de la hora} \times \text{tiempo} + \text{peajes} + \text{combustible}
-$
+El trabajo tiene dos partes. En la primera comparamos descenso por gradiente (GD), algoritmo evolutivo (EA), optimización por enjambre de partículas (PSO) y evolución diferencial (DE) en Rosenbrock y Rastrigin. En la segunda formulamos un TSP dirigido sobre 47 capitales provinciales de España peninsular y evaluamos ACO sobre costos por carretera.
+
+El análisis TSP distingue el baseline publicado sin peajes del **Modelo A experimental**, que combina tiempo, combustible y peajes asumidos o estimados. El paquete económico no es un tarifario nacional certificado. Este snapshot no contiene implementación ni resultados de GA; no se atribuyen resultados de GA a ACO.
+
+## Contenido del repositorio
+
+| Ruta | Contenido |
+|---|---|
+| `src/` | Métodos numéricos, metaheurísticas, TSP y ETL |
+| `experiments/` | Experimentos, validadores y orquestador de reproducción |
+| `configs/` | Configuraciones versionadas de experimentos |
+| `data/datasets/spain_tsp_2026/` | Catálogo, matrices base y 2.162 geometrías enriquecidas |
+| `data/datasets/spain_tsp_economic_20261013/` | Matrices económicas experimentales y evidencia por arco |
+| `data/reference/` | Fuentes de referencia seleccionadas |
+| `results/` | Resultados numéricos versionados |
+| `figures/` | Figuras y animaciones publicadas |
+| `tests/` | Pruebas automatizadas |
+| `docs/` | Metodología, datos, peajes y limitaciones |
+| `informe/` | Plantilla y generador del informe final |
 
 ## Instalación
 
+Se requiere Python 3.10 o posterior. Desde la raíz del repositorio:
+
 ```bash
 python -m venv .venv
-# Windows: .venv\Scripts\activate    Mac/Linux: source .venv/bin/activate
-pip install -r requirements.txt
-pytest
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
+# macOS/Linux: source .venv/bin/activate
+python -m pip install -r requirements.txt
 ```
 
-## Estructura
+Las matrices y los experimentos publicados se cargan localmente. La reproducción no requiere ORS, Overpass, TollGuru, credenciales ni servicios pagos.
 
-| Carpeta | Contenido |
-|---|---|
-| `src/` | Algoritmos, funciones de prueba, contador de evaluaciones |
-| `experiments/` | Un script por experimento |
-| `configs/` | Parámetros (YAML) y semillas |
-| `data/raw/`, `data/processed/` | Datos crudos del TSP y matrices derivadas |
-| `results/`, `figures/` | Salidas regenerables |
-| `tests/` | Pruebas unitarias |
-| `docs/` | Decisiones, bitácora de alucinaciones |
+## Reproducibilidad de los experimentos
 
-## Reproducir
-
-Cada experimento se ejecuta con un comando (se completa a medida que existan):
+El punto de entrada único coordina los scripts existentes, escribe las nuevas salidas en directorios separados y falla si esos destinos ya existen. Así no reemplaza resultados originales silenciosamente.
 
 ```bash
-# Descenso por gradiente, versión de demostración (~15 s, con figuras y GIF)
-python -m experiments.gd_experiment --config configs/gd_demo.yaml
-
-# Descenso por gradiente, versión completa (~3,5 min con figuras)
-python -m experiments.gd_experiment --config configs/gd.yaml
-
-# Comparación de métodos con el mismo presupuesto y semillas (demo ~5 s; completa ~25 s)
-python -m experiments.compare --config configs/compare_demo.yaml
-python -m experiments.compare --config configs/compare.yaml
+python -m experiments.reproduce_all
 ```
 
-Cualquier parámetro del YAML se puede cambiar sin editar archivos con `--set clave=valor`
-(se puede repetir), por ejemplo:
+El modo completo verifica los paquetes, reconstruye las tres matrices del Modelo A a partir de `toll_components.csv`, vuelve a ejecutar los protocolos completos configurados de GD, comparación EA/PSO/DE, ajuste de hiperparámetros, ACO baseline y ACO Modelo A, y genera figuras, GIFs y una copia regenerada del informe. Todas las salidas nuevas quedan bajo `results/reproducible/full/` y `figures/reproducible/reproducible/full/`; el resumen de ejecución registra comandos, tiempos, versión de Python y estado.
+
+Para revisar rápidamente la integración, sin presentar los resultados como finales:
 
 ```bash
-python -m experiments.gd_experiment --config configs/gd_demo.yaml --set tasas_aprendizaje.rosenbrock=[0.0004] --set n_runs=10
-python -m experiments.compare --config configs/compare_demo.yaml --set metodos.gd.rosenbrock.lr=0.0003
+python -m experiments.reproduce_all --quick
 ```
 
-Las demos escriben en `results/*_demo/` y `figures/*_demo/` (ignoradas por git), así que no
-sobrescriben los resultados completos que están en el repositorio.
-
-Salidas: `results/gd/runs.csv` (una fila por corrida), `results/gd/summary.csv` (media, desviación,
-mejor, peor y tasa de éxito por tasa de aprendizaje) y `figures/gd/` (convergencia, cajas,
-curvas de nivel y GIF en 2D). Los parámetros (presupuesto, tasas, umbrales) están en `configs/gd.yaml`.
-
-Conteo de evaluaciones (ver [decisiones](docs/decisiones.md)): `runs.csv` reporta `f_evals` y
-`grad_evals` por separado, más dos totales: `equiv_evals` (gradiente analítico = 1 evaluación; es el
-que se compara con el presupuesto) y `equiv_evals_2n` (gradiente por diferencias centrales = 2n).
-Una corrida es exitosa si f − f* ≤ umbral (`exito_0.0001` principal, `exito_0.01` secundario).
-
-Formato común de los métodos: cada algoritmo es una función
-`metodo(problem, seed, budget, grad_cost, **hiperparametros) -> RunResult` (ver `src/result.py`,
-que también trae `check_result` para probar el contrato). Para sumar un método a la comparación
-se registra en `src/methods.py` y se agregan sus hiperparámetros en `metodos:` de
-`configs/compare.yaml`.
-
-Informe de la Parte 1: la versión de trabajo está en el Google Docs compartido del equipo. El borrador
-inicial (`docs/Informe_Parte1.docx`, ignorado por git) se genera desde `results/` y `figures/` con Node
-(requiere haber corrido antes los experimentos completos); sirve para sacar las tablas actualizadas:
+Para validar hashes, geometrías, cobertura, matrices y componentes económicos sin ejecutar optimizadores:
 
 ```bash
-npm --prefix informe install    # una sola vez
-npm --prefix informe run parte1
+python -m experiments.reproduce_all --verify-only
 ```
 
-Las tablas se leen de los CSV; el texto del análisis está en `informe/build_parte1.js` y hay que
-revisarlo a mano si cambian los resultados. Lo pendiente sale resaltado en amarillo.
+También puede ejecutarse una sola parte con `--part 1` o `--part 2`. Si el directorio predeterminado de salida ya existe, el proceso se detiene; use `--output-dir results/reproducible_run_2` para conservar la ejecución anterior. La duración completa depende del equipo y del entorno; no se fija una estimación no medida.
 
-## Documentación del equipo
+La reproducción produce los resultados de los algoritmos implementados. **No genera resultados de GA**, pues no se encontró una implementación GA en esta versión del repositorio.
 
-- [Decisiones](docs/decisiones.md)
-- [Cacería de la alucinación](docs/alucinaciones.md)
-- [Fuentes de datos](data/fuentes.md)
-- [Fundamentos del módulo TSP](docs/tsp_fase1.md)
-- [Modelos duales del TSP](docs/tsp_modelo_dual.md)
-- [Preparación de adquisición de datos reales del TSP](docs/tsp_adquisicion.md)
-- [ETL local y construcción offline de matrices del TSP](docs/tsp_etl.md)
-- [Dataset nacional offline de España: datos, licencias y uso](data/datasets/spain_tsp_2026/README.md)
-- [Aviso de licencia y atribución de datos](data/datasets/spain_tsp_2026/LICENSE-DATA.md)
-- [Inventario de peajes, piloto Overpass y límites de verificación](docs/tsp_peajes.md)
-- [Ant System para el TSP dirigido](docs/tsp_aco.md)
-- [Líneas base y validación de Ant System](docs/tsp_lineas_base.md)
+## Resultados principales
 
-Demostración sintética offline de ACO (no utiliza datos de España):
+### Parte 1
+
+La comparación principal utiliza 30 semillas y presupuestos comunes por dimensión, conforme a `configs/compare.yaml`. Las tablas, pruebas y datos están en [resultados de comparación](results/compare/summary.csv), [pruebas estadísticas](results/compare/pruebas.csv), [intervalos de confianza](results/compare/ic_exito.csv) y [barrido de hiperparámetros](results/tuning/validation_summary.csv).
+
+### Parte 2
+
+La instancia vial tiene 47 nodos y 2.162 arcos dirigidos. El dataset incluye matrices de distancia y duración, combustible, baselines sin peajes y 11 fragmentos comprimidos de geometrías ORS con `tollways` y `waycategory`. Su orden, hashes, fuentes y licencias se documentan en [README del dataset](data/datasets/spain_tsp_2026/README.md).
+
+El paquete [económico experimental](data/datasets/spain_tsp_economic_20261013/README.md) registra 1.020 arcos con cero supuesto por ausencia de tramos ORS, seis con tarifas oficiales aplicadas por asociación de recorrido inferida y 1.136 con proxy exploratorio. No hay importes de peaje oficialmente verificados a nivel de ruta; el proxy base es 0,14145 EUR/km de tramo marcado como peaje y no se presenta como tarifa media española. El Modelo B disponible es `FASTEST_ONLY`: no constituye una comparación validada con rutas libres de peaje.
+
+Resultados guardados de ACO para el Modelo A experimental (30 corridas por escenario, 100 evaluaciones por corrida):
+
+| Valor del tiempo | Mejor costo | Media | Desviación estándar |
+|---:|---:|---:|---:|
+| 10 EUR/h | 2.262,47 EUR | 2.537,51 EUR | 124,94 EUR |
+| 25 EUR/h | 4.120,15 EUR | 4.485,19 EUR | 171,38 EUR |
+| 50 EUR/h | 7.313,51 EUR | 7.897,95 EUR | 264,79 EUR |
+
+Resultados completos: [corridas ACO Modelo A](results/tsp/model_a_experimental_aco_30_runs.json), [corridas baseline sin peajes](results/tsp/baseline_aco_30_runs.json) y [comparación ACO, vecino más cercano y 2-opt](results/tsp/model_a_v25_aco_baselines.json).
+
+![Mejor recorrido ACO del Modelo A, con v=25 EUR/h](figures/tsp/best_tour_model_a_v25.png)
+
+![Convergencia agregada de 30 corridas ACO del Modelo A](figures/tsp/convergence_model_a_aco_30_runs.png)
+
+## Visualizaciones y GIFs
+
+### Trayectoria sobre la red vial
+
+![Evolución comparada de ACO y líneas base sobre geometrías ORS](figures/tsp/aco_nn_2opt_comparison.gif)
+
+![Recorrido TSP de ACO que parte de Madrid y regresa a Madrid](figures/tsp/trip_aco.gif)
+
+### Parte 1
+
+![Descenso por gradiente en Rosenbrock](figures/anim/anim_gd_rosenbrock.gif)
+
+![Evolución de PSO en Rastrigin](figures/anim/anim_pso_rastrigin.gif)
+
+Más animaciones: [GD, EA, PSO y DE](figures/anim/), [ACO durante la búsqueda](figures/tsp/aco_evolution.gif), [vecino más cercano](figures/tsp/trip_nearest_neighbor.gif) y [vecino más cercano con 2-opt](figures/tsp/trip_nearest_neighbor_2opt.gif). Las animaciones TSP siguen geometrías almacenadas; no dibujan carreteras nuevas.
+
+## Datos, fuentes y límites
+
+- Las rutas y resultados de openrouteservice se atribuyen a **© openrouteservice by HeiGIT | Data from OpenStreetMap**; los términos consultados indican CC BY-SA 4.0.
+- Los datos de OpenStreetMap se atribuyen a **© OpenStreetMap contributors** bajo ODbL. Las licencias de ORS y OSM se explican por separado en [licencia del dataset vial](data/datasets/spain_tsp_2026/LICENSE-DATA.md).
+- Las tarifas oficiales seleccionadas conservan enlaces y contexto en [fuentes](data/fuentes.md) y en el paquete económico.
+- ORS clasifica tramos potencialmente tarifados, pero no devuelve el precio. Los ceros del Modelo A son supuestos derivados de `tollways`; otros importes son inferencias o estimaciones identificadas por arco.
+- El baseline `v*T + combustible` no significa que el peaje sea oficialmente cero.
+- La matriz económica es un escenario experimental para optimización, no una liquidación de concesionarias ni una validación predictiva nacional.
+
+## Informe
+
+[Informe final del Trabajo 1 (DOCX)](docs/Informe_Trabajo1.docx). La fuente editable y el comando de generación están en `informe/`; consulte [informe/README.md](informe/README.md).
+
+## Pruebas
 
 ```bash
-python -m experiments.tsp_aco_demo --config configs/tsp_aco_demo.yaml
-python -m experiments.validate_tsp_aco --config configs/tsp_baselines_demo.yaml
+python -m pytest
 ```
 
-### Instancia vial nacional offline
-
-El paquete `data/datasets/spain_tsp_2026/` contiene el catálogo de 47 ciudades, matrices dirigidas de distancia, duración, combustible y tres **baselines sin componente de peajes**, además de 2.162 geometrías Directions con `tollways` y `waycategory`. Se carga y valida sin ORS:
-
-```bash
-python -c "from src.tsp.etl import load_published_dataset; d=load_published_dataset('data/datasets/spain_tsp_2026'); print(len(d['city_order']), d['distance_km'].shape)"
-```
-
-Las salidas de openrouteservice están bajo CC BY-SA 4.0 con atribución a HeiGIT; la atribución a OpenStreetMap y el aviso/enlace ODbL se documentan por separado. El catálogo de ciudades conserva la procedencia IGN. Los baselines calculan `v*T + combustible` para v=10, 25 y 50 EUR/h y no significan peaje cero. **No hay una matriz económica total completa.** Las respuestas crudas no se incluyen. El código y los datos tienen licencias separadas; no se infiere licencia de software a partir de `LICENSE-DATA.md`.
+Las pruebas verifican algoritmos, contratos, matrices, publicación de los datos y persistencia. La adquisición de datos de proveedor se mantiene separada de la reproducción de experimentos.
