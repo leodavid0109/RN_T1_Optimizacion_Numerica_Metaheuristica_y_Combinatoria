@@ -26,6 +26,28 @@ OVERPASS_ENDPOINT = "https://overpass-api.de/api/interpreter"
 OVERPASS_SOURCE = "OpenStreetMap/Overpass API"
 
 
+def overpass_way_ids_query(osm_way_ids: Iterable[int]) -> str:
+    """Consulta acotada por IDs de vías, sin búsqueda espacial extensa."""
+    return _overpass_ids_query("way", osm_way_ids)
+
+
+def overpass_node_ids_query(osm_node_ids: Iterable[int]) -> str:
+    """Consulta acotada por IDs de nodos OSM conocidos."""
+    return _overpass_ids_query("node", osm_node_ids)
+
+
+def _overpass_ids_query(osm_type: str, values: Iterable[int]) -> str:
+    if osm_type not in {"node", "way"}:
+        raise ValueError("la consulta puntual solo admite nodos y vías")
+    ids = tuple(values)
+    if not ids or len(ids) > 50 or any(type(value) is not int or value <= 0 for value in ids):
+        raise ValueError("se requieren entre 1 y 50 IDs OSM positivos")
+    if len(ids) != len(set(ids)):
+        raise ValueError("los IDs OSM de vías no deben repetirse en un lote")
+    geometry_output = " geom" if osm_type == "way" else ""
+    return f"[out:json][timeout:25];{osm_type}(id:{','.join(map(str, sorted(ids)))});out body{geometry_output};"
+
+
 @dataclass(frozen=True)
 class BoundingBox:
     """Caja geográfica WGS84, en orden sur, oeste, norte, este."""
@@ -128,7 +150,17 @@ class OverpassClient:
 
     def fetch_bbox_payload(self, bbox: BoundingBox) -> dict:
         """Devuelve el JSON original de una única consulta acotada."""
-        query = bbox.overpass_query()
+        return self._fetch_query_payload(bbox.overpass_query())
+
+    def fetch_way_ids_payload(self, osm_way_ids: Iterable[int]) -> dict:
+        """Una solicitud explícita por hasta 50 IDs, sin reintentos implícitos."""
+        return self._fetch_query_payload(overpass_way_ids_query(osm_way_ids))
+
+    def fetch_node_ids_payload(self, osm_node_ids: Iterable[int]) -> dict:
+        """Una solicitud explícita por hasta 50 nodos conocidos, sin reintentos."""
+        return self._fetch_query_payload(overpass_node_ids_query(osm_node_ids))
+
+    def _fetch_query_payload(self, query: str) -> dict:
         request = Request(
             self.endpoint,
             data=urlencode({"data": query}).encode("utf-8"),
@@ -202,6 +234,61 @@ class OverpassCatalogStore:
             "attribution": "© OpenStreetMap contributors", "license": "ODbL",
         }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         return records, True
+
+    def get_or_fetch_way_ids(
+        self, client: OverpassClient, osm_way_ids: Iterable[int],
+    ) -> tuple[dict, bool]:
+        """Caché por lote de IDs; 504 queda registrado para reanudar después.
+
+        La llamada explícita hace como máximo un HTTP. Conserva el JSON crudo,
+        incluso si la vía no lleva etiqueta de peaje. No declara cobertura.
+        """
+        return self._get_or_fetch_ids(client, "way", tuple(osm_way_ids))
+
+    def get_or_fetch_node_ids(
+        self, client: OverpassClient, osm_node_ids: Iterable[int],
+    ) -> tuple[dict, bool]:
+        """Caché por IDs de nodos conocidos, útil para revisar estaciones locales."""
+        return self._get_or_fetch_ids(client, "node", tuple(osm_node_ids))
+
+    def _get_or_fetch_ids(self, client: OverpassClient, osm_type: str,
+                          osm_ids: tuple[int, ...]) -> tuple[dict, bool]:
+        query_builder = overpass_way_ids_query if osm_type == "way" else overpass_node_ids_query
+        query = query_builder(osm_ids)
+        fingerprint = sha256(query.encode("utf-8")).hexdigest()[:20]
+        prefix = f"osm_{osm_type}s"
+        metadata_path = self.processed_dir / f"{prefix}_{fingerprint}.metadata.json"
+        if metadata_path.exists():
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            if metadata.get("status") == "acquired":
+                raw_path = self.raw_dir / metadata["raw_file"]
+                if raw_path.exists():
+                    return json.loads(raw_path.read_text(encoding="utf-8")), False
+        try:
+            fetch = client.fetch_way_ids_payload if osm_type == "way" else client.fetch_node_ids_payload
+            payload = fetch(osm_ids)
+        except OverpassError as exc:
+            self.processed_dir.mkdir(parents=True, exist_ok=True)
+            metadata_path.write_text(json.dumps({
+                "schema_version": 1, "status": "error", "query": query,
+                "query_sha256": sha256(query.encode()).hexdigest(),
+                "http_status": exc.status_code,
+                "failed_at": datetime.now(timezone.utc).isoformat(),
+            }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            raise
+        acquired_at = datetime.now(timezone.utc).isoformat()
+        payload_digest = sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:12]
+        raw_path = self.raw_dir / f"{prefix}_{fingerprint}_{payload_digest}.json"
+        self.raw_dir.mkdir(parents=True, exist_ok=True)
+        self.processed_dir.mkdir(parents=True, exist_ok=True)
+        raw_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        metadata_path.write_text(json.dumps({
+            "schema_version": 1, "status": "acquired", "source": OVERPASS_SOURCE,
+            "query": query, "query_sha256": sha256(query.encode()).hexdigest(),
+            "acquired_at": acquired_at, "raw_file": raw_path.name,
+            "attribution": "© OpenStreetMap contributors", "license": "ODbL",
+        }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        return payload, True
 
 
 def parse_overpass_response(payload: dict, *, acquired_at: str | None = None) -> tuple[TollInfrastructure, ...]:

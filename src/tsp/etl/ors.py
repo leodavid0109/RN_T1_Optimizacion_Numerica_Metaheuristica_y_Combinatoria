@@ -8,6 +8,7 @@ from hashlib import sha256
 import json
 import math
 import os
+import socket
 import time
 from typing import Callable, Mapping
 from urllib.error import HTTPError, URLError
@@ -15,10 +16,21 @@ from urllib.request import Request, urlopen
 
 from ..alternatives import RouteAlternative, TollStatus
 from .acquisition import AcquisitionRequest
+from .config import DEFAULT_DIRECTIONS_ENDPOINT, normalize_ors_endpoint
+from .ors_extras import analyze_geojson_extras
 
 
 class ProviderError(RuntimeError):
-    """Error sanitizado de proveedor (no contiene clave ni cabeceras)."""
+    """Error sanitizado con fase, categoría y estado HTTP opcional."""
+
+    def __init__(self, message: str, *, category: str = "provider_error",
+                 stage: str = "request", http_status_code: int | None = None,
+                 http_request_counted: bool = False) -> None:
+        super().__init__(message)
+        self.category = category
+        self.stage = stage
+        self.http_status_code = http_status_code
+        self.http_request_counted = http_request_counted
 
 
 class OpenRouteServiceProvider:
@@ -31,7 +43,7 @@ class OpenRouteServiceProvider:
         api_key: str | None = None,
         *,
         profile: str = "driving-car",
-        endpoint: str = "https://api.openrouteservice.org/v2/directions",
+        endpoint: str = DEFAULT_DIRECTIONS_ENDPOINT,
         matrix_endpoint: str | None = None,
         timeout_seconds: float = 30.0,
         max_retries: int = 3,
@@ -44,8 +56,9 @@ class OpenRouteServiceProvider:
     ) -> None:
         self.api_key = api_key if api_key is not None else os.environ.get("ORS_API_KEY")
         self.profile = profile
-        self.endpoint = endpoint.rstrip("/")
-        self.matrix_endpoint = matrix_endpoint.rstrip("/") if matrix_endpoint else None
+        self.endpoint = normalize_ors_endpoint(endpoint, "directions")
+        self.matrix_endpoint = (normalize_ors_endpoint(matrix_endpoint, "matrix")
+                                if matrix_endpoint else None)
         self.timeout_seconds = timeout_seconds
         self.max_retries = max_retries
         self.max_http_requests = max_http_requests
@@ -64,9 +77,10 @@ class OpenRouteServiceProvider:
         endpoint_id = sha256(self.endpoint.encode()).hexdigest()[:10]
         return f"{self.provider_name}:{self.profile}:endpoint-{endpoint_id}"
 
-    def fetch(self, request: AcquisitionRequest) -> tuple[dict, tuple[RouteAlternative, ...]]:
+    def fetch(self, request: AcquisitionRequest) -> tuple[dict, dict, tuple[RouteAlternative, ...]]:
         if not self.api_key:
-            raise ProviderError("falta ORS_API_KEY; no se realizó ninguna solicitud")
+            raise ProviderError("falta ORS_API_KEY; no se realizó ninguna solicitud",
+                                category="missing_credentials", stage="configuration")
         coordinates = [
             [float(request.origin.longitude), float(request.origin.latitude)],
             [float(request.destination.longitude), float(request.destination.latitude)],
@@ -77,20 +91,34 @@ class OpenRouteServiceProvider:
             body["alternative_routes"] = {"target_count": request.request_alternatives}
         if request.avoid_tolls or request.strategy == "avoid_tolls":
             body["options"] = {"avoid_features": ["tollways"]}
+        if request.extra_info:
+            body["extra_info"] = list(request.extra_info)
         url = f"{self.endpoint}/{self.profile}/geojson"
         safe_request = {"method": "POST", "url": url, "body": body}
         raw = self._post(url, body)
+        if request.extra_info:
+            try:
+                analyze_geojson_extras(raw, required=request.extra_info)
+            except ValueError as exc:
+                raise ProviderError(f"respuesta ORS enriquecida incompleta: {exc}",
+                                    category="missing_extra_info", stage="response_validation",
+                                    http_status_code=self.http_status_codes[-1],
+                                    http_request_counted=True) from exc
         routes = parse_ors_geojson(
             raw,
             origin_id=request.origin.city_id,
             destination_id=request.destination.city_id,
             request_id=request.request_id,
             fastest_route_id=request.fastest_route_id(self.profile),
-            is_primary_fastest=(request.strategy == "fastest" and not request.avoid_tolls),
+            # Un snapshot enriquecido conserva la identidad de la rápida anterior,
+            # pero no la sustituye ni adopta su alternative_id.
+            is_primary_fastest=(request.strategy == "fastest" and not request.avoid_tolls
+                                and not request.extra_info),
             strategy=request.strategy,
             profile=self.profile,
             source=url,
             acquired_on=self.today(),
+            extra_info=request.extra_info,
         )
         return safe_request, raw, routes
 
@@ -101,7 +129,8 @@ class OpenRouteServiceProvider:
         de alternativas se usa Directions por arco; el resultado Matrix no basta.
         """
         if not self.api_key:
-            raise ProviderError("falta ORS_API_KEY; no se realizó ninguna solicitud")
+            raise ProviderError("falta ORS_API_KEY; no se realizó ninguna solicitud",
+                                category="missing_credentials", stage="configuration")
         cities = tuple(cities)
         if len(cities) < 2 or len({city.city_id for city in cities}) != len(cities):
             raise ValueError("Matrix requiere al menos dos ciudades con ids únicos")
@@ -140,7 +169,8 @@ class OpenRouteServiceProvider:
             )
             if (self.max_http_requests is not None
                     and self.http_requests_made >= self.max_http_requests):
-                raise ProviderError("se agotó el presupuesto total de solicitudes HTTP")
+                raise ProviderError("se agotó el presupuesto total de solicitudes HTTP",
+                                    category="http_budget_exhausted", stage="request_budget")
             # Cuenta cada intento, incluso fallos de transporte y reintentos.
             self.http_requests_made += 1
             self._last_request_at = self.clock()
@@ -151,19 +181,29 @@ class OpenRouteServiceProvider:
                     headers = response.headers
             except HTTPError as exc:
                 status, headers = exc.code, exc.headers
-                data = b""
+                try:
+                    data = exc.read()
+                except OSError:
+                    data = b""
             except (URLError, TimeoutError, OSError) as exc:
+                category = _transport_error_category(exc)
                 if attempt >= self.max_retries:
-                    raise ProviderError("falló la conexión al proveedor") from exc
+                    raise ProviderError(_transport_error_message(category), category=category,
+                                        stage="transport", http_request_counted=True) from exc
                 self.sleep(min(2**attempt, 30))
                 continue
 
             self.http_status_codes.append(status)
             if status == 401 or status == 403:
-                raise ProviderError(f"el proveedor rechazó autenticación/permisos (HTTP {status})")
+                raise ProviderError(f"el proveedor rechazó autenticación/permisos (HTTP {status})",
+                                    category="authentication_rejected", stage="http_response",
+                                    http_status_code=status, http_request_counted=True)
             if status == 429 or status >= 500:
                 if attempt >= self.max_retries:
-                    raise ProviderError(f"el proveedor no aceptó la solicitud (HTTP {status})")
+                    category = "rate_limited" if status == 429 else "server_error"
+                    raise ProviderError(_http_error_message(status, data, self.api_key),
+                                        category=category, stage="http_response",
+                                        http_status_code=status, http_request_counted=True)
                 retry_after = headers.get("Retry-After") if headers else None
                 try:
                     delay = float(retry_after) if retry_after is not None else float(2**attempt)
@@ -176,15 +216,64 @@ class OpenRouteServiceProvider:
                 self.sleep(min(max(delay, 0.0), 60.0))
                 continue
             if status < 200 or status >= 300:
-                raise ProviderError(f"respuesta HTTP no satisfactoria ({status})")
+                category = "invalid_parameters" if status == 400 else "http_error"
+                raise ProviderError(_http_error_message(status, data, self.api_key),
+                                    category=category, stage="http_response",
+                                    http_status_code=status, http_request_counted=True)
             try:
                 decoded = json.loads(data.decode("utf-8"))
             except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-                raise ProviderError("el proveedor devolvió JSON inválido") from exc
+                raise ProviderError("el proveedor devolvió JSON inválido",
+                                    category="invalid_json", stage="response_parse",
+                                    http_status_code=status, http_request_counted=True) from exc
             if not isinstance(decoded, dict):
-                raise ProviderError("la respuesta del proveedor debe ser un objeto JSON")
+                raise ProviderError("la respuesta del proveedor debe ser un objeto JSON",
+                                    category="invalid_json_shape", stage="response_parse",
+                                    http_status_code=status, http_request_counted=True)
             return decoded
-        raise ProviderError("se agotaron los reintentos")
+        raise ProviderError("se agotaron los reintentos", category="retries_exhausted",
+                            stage="retry_policy")
+
+
+def _transport_error_category(exc: BaseException) -> str:
+    reason = exc.reason if isinstance(exc, URLError) else exc
+    if isinstance(reason, (socket.gaierror,)):
+        return "dns_error"
+    if isinstance(reason, (TimeoutError, socket.timeout)):
+        return "timeout"
+    if isinstance(reason, ConnectionRefusedError):
+        return "connection_refused"
+    if isinstance(reason, (ConnectionError, OSError)):
+        return "connection_error"
+    return "transport_error"
+
+
+def _transport_error_message(category: str) -> str:
+    return {
+        "dns_error": "no se pudo resolver el host del proveedor (DNS)",
+        "timeout": "se agotó el tiempo de conexión/lectura del proveedor",
+        "connection_refused": "el proveedor o proxy rechazó la conexión",
+        "connection_error": "falló la conexión de red al proveedor",
+    }.get(category, "falló el transporte de red al proveedor")
+
+
+def _http_error_message(status: int, body: bytes, api_key: str | None) -> str:
+    """Extrae solo mensaje breve del cuerpo HTTP; nunca registra JSON crudo ni headers."""
+    message = ""
+    try:
+        payload = json.loads(body.decode("utf-8"))
+        error = payload.get("error", payload) if isinstance(payload, dict) else None
+        if isinstance(error, dict):
+            message = str(error.get("message") or error.get("error") or payload.get("message") or "")
+        elif isinstance(error, str):
+            message = error
+    except (UnicodeDecodeError, json.JSONDecodeError, AttributeError):
+        pass
+    message = " ".join(message.split())[:300]
+    if api_key:
+        message = message.replace(api_key, "[REDACTED]")
+    category = "parámetro o esquema rechazado" if status == 400 else f"HTTP {status}"
+    return f"ORS respondió HTTP {status}: {message}" if message else f"ORS respondió HTTP {status} ({category})"
 
 
 def parse_ors_geojson(
@@ -199,11 +288,13 @@ def parse_ors_geojson(
     profile: str,
     source: str,
     acquired_on: str,
+    extra_info: tuple[str, ...] = (),
 ) -> tuple[RouteAlternative, ...]:
     """Normaliza GeoJSON ORS (m, s) y conserva que el peaje es desconocido."""
     features = response.get("features")
     if not isinstance(features, list) or not features:
-        raise ProviderError("la respuesta no contiene features de ruta")
+        raise ProviderError("la respuesta no contiene features de ruta",
+                            category="route_missing", stage="response_validation")
     parsed = []
     for index, feature in enumerate(features):
         try:
@@ -220,12 +311,15 @@ def parse_ors_geojson(
                 if step.get("ref") or step.get("name")
             ))
         except (KeyError, TypeError, ValueError, IndexError) as exc:
-            raise ProviderError("feature ORS incompleta o con unidades inválidas") from exc
+            raise ProviderError("feature ORS incompleta o con unidades inválidas",
+                                category="invalid_route_response", stage="response_validation") from exc
         if len(geometry) < 2:
-            raise ProviderError("geometría ORS incompleta")
+            raise ProviderError("geometría ORS incompleta", category="invalid_route_response",
+                                stage="response_validation")
         parsed.append((distance_km, duration_hours, geometry, road_references))
     if any(distance <= 0 or duration <= 0 for distance, duration, _, _ in parsed):
-        raise ProviderError("distancia y duración de ruta deben ser positivas")
+        raise ProviderError("distancia y duración de ruta deben ser positivas",
+                            category="invalid_route_response", stage="response_validation")
 
     ids = [f"ors-{request_id}-{index:02d}" for index in range(len(parsed))]
     fastest_index = min(range(len(parsed)), key=lambda index: (parsed[index][1], parsed[index][0], ids[index]))
@@ -254,7 +348,8 @@ def parse_ors_geojson(
             acquired_on=acquired_on,
             network_data_version=str(graph_version) if graph_version is not None else None,
             road_references=road_references,
-            routing_parameters=(("preference", "fastest"), ("strategy", strategy)),
+            routing_parameters=(("preference", "fastest"), ("strategy", strategy))
+            + ((("extra_info", ",".join(extra_info)),) if extra_info else ()),
             geometry_lon_lat=geometry,
             limitations=(
                 "Duración calculada por el perfil, no medición de tráfico en tiempo real.",

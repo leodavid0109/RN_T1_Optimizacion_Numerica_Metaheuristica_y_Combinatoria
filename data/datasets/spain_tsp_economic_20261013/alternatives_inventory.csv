@@ -1,0 +1,7 @@
+origin_id,destination_id,alternative_id,distance_km,duration_hours,extra_info_status,toll_status,eligible_for_model_b,reason
+madrid,toledo,ors-33c65c283ec9bec76cfe-00,74.3755,0.9763333333333334,NOT_ACQUIRED,UNKNOWN,false,Snapshot heredado sin extras tollways/waycategory; no acredita ausencia de peajes.
+toledo,madrid,ors-0773e3b148904423be50-00,73.9699,0.9621666666666667,NOT_ACQUIRED,UNKNOWN,false,Snapshot heredado sin extras tollways/waycategory; no acredita ausencia de peajes.
+bizkaia,zaragoza,ors-d0b00b1952c9ffa5f58c-00,336.9379,4.317472222222222,NOT_ACQUIRED,UNKNOWN,false,Snapshot heredado sin extras tollways/waycategory; no acredita ausencia de peajes.
+zaragoza,bizkaia,ors-cb6d60500e87d4df03e0-00,335.5249,4.33575,NOT_ACQUIRED,UNKNOWN,false,Snapshot heredado sin extras tollways/waycategory; no acredita ausencia de peajes.
+madrid,a_coruna,ors-0966d5dd5f6de1b0fbe1-00,605.2846,6.468055555555556,NOT_ACQUIRED,UNKNOWN,false,Snapshot heredado sin extras tollways/waycategory; no acredita ausencia de peajes.
+barcelona,girona,ors-90bcdc37805d01586fc1-00,102.9545,1.40875,NOT_ACQUIRED,UNKNOWN,false,Snapshot heredado sin extras tollways/waycategory; no acredita ausencia de peajes.

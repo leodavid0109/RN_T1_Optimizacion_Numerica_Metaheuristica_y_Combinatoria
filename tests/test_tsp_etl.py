@@ -19,6 +19,7 @@ from src.tsp.etl import (
 )
 from src.tsp.etl.matrices import build_fuel_matrix, load_complete_matrix, rebuild_matrix_snapshot
 from src.tsp.etl.matrix_validation import compare_matrix_to_directions
+from src.tsp.etl.config import normalize_ors_endpoint
 
 
 def _city(city_id: str, lat: float, lon: float) -> City:
@@ -470,8 +471,60 @@ def test_project_etl_yaml_is_loaded_and_validated():
     assert config.profile == "driving-car"
     assert config.standard_plan_daily_directions_limit == 2000
     assert config.standard_plan_daily_matrix_limit == 500
+    assert config.directions_endpoint == "https://api.heigit.org/openrouteservice/v2/directions"
     assert config.matrix_endpoint == "https://api.heigit.org/openrouteservice/v2/matrix"
     assert config.raw_responses.as_posix() == "data/raw/routes"
+
+
+def test_ors_endpoint_migration_normalizes_heigit_and_rejects_legacy_host(monkeypatch):
+    assert normalize_ors_endpoint("https://api.heigit.org/v2/directions/", "directions") == (
+        "https://api.heigit.org/openrouteservice/v2/directions"
+    )
+    assert normalize_ors_endpoint("https://api.heigit.org/openrouteservice/v2", "directions") == (
+        "https://api.heigit.org/openrouteservice/v2/directions"
+    )
+    with pytest.raises(ValueError, match="obsoleto"):
+        normalize_ors_endpoint("https://api.openrouteservice.org/v2/directions", "directions")
+    monkeypatch.setenv("ORS_DIRECTIONS_ENDPOINT", "https://api.openrouteservice.org/v2/directions")
+    with pytest.raises(ValueError, match="obsoleto"):
+        load_etl_config()
+    monkeypatch.setenv("ORS_DIRECTIONS_ENDPOINT", "https://fixture.invalid/custom/directions")
+    assert load_etl_config().directions_endpoint == "https://fixture.invalid/custom/directions"
+
+
+def test_ors_endpoint_rejects_embedded_credentials_and_duplicate_heigit_path():
+    with pytest.raises(ValueError, match="credenciales"):
+        normalize_ors_endpoint("https://user:secret@api.heigit.org/v2/directions", "directions")
+    with pytest.raises(ValueError, match="duplica"):
+        normalize_ors_endpoint(
+            "https://api.heigit.org/openrouteservice/v2/openrouteservice/directions", "directions"
+        )
+
+
+def test_routes_plan_shows_effective_endpoint_without_credentials(tmp_path, monkeypatch, capsys):
+    from experiments import acquire_tsp_routes
+
+    config = type("Config", (), {
+        "profile": "driving-car",
+        "directions_endpoint": "https://api.heigit.org/openrouteservice/v2/directions",
+        "timeout_seconds": 30.0,
+        "route_catalog": tmp_path / "routes.csv",
+        "raw_responses": tmp_path / "raw",
+    })()
+    monkeypatch.setattr(acquire_tsp_routes, "load_etl_config", lambda _path: config)
+    monkeypatch.setattr("sys.argv", [
+        "acquire_tsp_routes", "--pairs", "madrid:toledo", "--strategy", "fastest",
+        "--extra-info", "tollways,waycategory", "--max-requests", "1",
+        "--max-http-requests", "1", "--max-retries", "0",
+    ])
+    assert acquire_tsp_routes.main() == 0
+    plan = json.loads(capsys.readouterr().out)
+    assert plan["effective_endpoint"] == (
+        "https://api.heigit.org/openrouteservice/v2/directions/driving-car/geojson"
+    )
+    assert plan["requests"][0]["extra_info"] == ["tollways", "waycategory"]
+    assert plan["max_http_requests"] == 1 and plan["max_retries"] == 0
+    assert "ORS_API_KEY" not in json.dumps(plan)
 
 
 def test_project_fuel_config_has_verified_bulletin_price_and_source_hash():

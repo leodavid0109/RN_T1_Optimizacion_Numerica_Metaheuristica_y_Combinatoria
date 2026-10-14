@@ -99,14 +99,25 @@ class RouteStore:
     def save_failure(
         self, request_id: str, error_type: str, *, http_requests: int = 0,
         http_status_codes: Iterable[int] = (),
-    ) -> None:
+        diagnostic: dict | None = None,
+    ) -> str:
+        failed_at = datetime.now(timezone.utc).isoformat()
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        diagnostic_path = self.root / "diagnostics" / f"{_safe_filename(request_id)}_{stamp}.json"
+        record = {"schema_version": 1, "request_id": request_id, "error_type": error_type,
+                  "http_requests": http_requests, "http_status_codes": list(http_status_codes),
+                  "failed_at": failed_at, **(diagnostic or {})}
+        _write_text_atomic(diagnostic_path, json.dumps(record, ensure_ascii=False, indent=2) + "\n")
         state = self._state()
         state["requests"][request_id] = {
             "status": "error", "error_type": error_type,
             "http_requests": http_requests, "http_status_codes": list(http_status_codes),
-            "failed_at": datetime.now(timezone.utc).isoformat(),
+            "failed_at": failed_at, "diagnostic_file": str(diagnostic_path.relative_to(self.root)),
+            "diagnostic_category": (diagnostic or {}).get("category"),
+            "diagnostic_stage": (diagnostic or {}).get("stage"),
         }
         self._write_state(state)
+        return str(diagnostic_path)
 
     def save_matrix_snapshot(
         self, request_id: str, safe_request: dict, response: dict,
