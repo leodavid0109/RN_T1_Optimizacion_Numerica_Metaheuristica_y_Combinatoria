@@ -39,9 +39,22 @@ Si ORS devuelve extras completos y no marca tramos tollways, se usa `ZERO_ASSUME
 
 El piloto de 20 `avoid_tolls` dejó 20 rechazos de conexión sin código HTTP ni respuesta. Un intento posterior con permisos ampliados se interrumpió sin resumen, por lo que se desconoce cuántos intentos adicionales alcanzó a iniciar. No hay alternativas nuevas persistidas. Por ello el Modelo B numérico equivale al fastest-only y no debe describirse como comparación de rutas rápidas y libres. Revise diagnósticos y cuota antes de reintentar.
 
-## Reproducción offline
+## Cargar la matriz offline
 
-Desde la raíz del repositorio: `python -m experiments.build_tsp_economic_bundle`. No necesita internet ni ORS_API_KEY.
+Las matrices de este paquete ya están generadas; cargarlas no necesita internet, snapshots privados ni ORS_API_KEY. Este ejemplo conserva el orden y construye una matriz lista para entregar a la función objetivo de GA/ACO:
+
+```python
+import csv
+from pathlib import Path
+root = Path('data/datasets/spain_tsp_economic_20261013')
+with (root / 'cities.csv').open(encoding='utf-8-sig', newline='') as f:
+    cities = [row['city_id'] for row in csv.DictReader(f)]
+with (root / 'model_a_v25_eur.csv').open(encoding='utf-8-sig', newline='') as f:
+    rows = list(csv.DictReader(f))
+assert [row['city_id'] for row in rows] == cities
+cost = [[float(row[city]) for city in cities] for row in rows]
+assert len(cost) == 47 and all(len(row) == 47 for row in cost)
+```
 
 ## Atribución
 
