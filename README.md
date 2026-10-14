@@ -122,9 +122,13 @@ Más animaciones: [GD, EA, PSO y DE](figures/anim/), [ACO durante la búsqueda](
 - El baseline `v*T + combustible` no significa que el peaje sea oficialmente cero.
 - La matriz económica es un escenario experimental para optimización, no una liquidación de concesionarias ni una validación predictiva nacional.
 
-## Informe
+### Informe académico
 
-[Informe final del Trabajo 1 (DOCX)](docs/Informe_Trabajo1.docx). La fuente editable y el comando de generación están en `informe/`; consulte [informe/README.md](informe/README.md).
+El informe completo del Trabajo 1 se encuentra disponible en formato web mediante GitHub Pages:
+
+[**Consultar el informe en línea**](https://leodavid0109.github.io/RN_T1_Optimizacion_Numerica_Metaheuristica_y_Combinatoria/)
+
+El documento presenta la metodología, los resultados experimentales, las figuras y las conclusiones de ambas partes del trabajo.
 
 ## Pruebas
 
