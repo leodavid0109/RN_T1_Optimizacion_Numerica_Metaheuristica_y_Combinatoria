@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 import json
 from typing import Protocol, Sequence
 
 from ..cities import City
 from ..alternatives import RouteAlternative
-from .store import RouteStore
+from .store import PersistenceError, RouteStore
 
 
 @dataclass(frozen=True)
@@ -86,6 +86,8 @@ class AcquisitionSummary:
     http_requests: int = 0
     http_status_codes: tuple[int, ...] = ()
     failures: tuple[dict, ...] = ()
+    not_attempted: int = 0
+    stopped_reason: str | None = None
 
 
 class AcquisitionManager:
@@ -113,6 +115,8 @@ class AcquisitionManager:
         namespace = getattr(self.provider, "cache_namespace",
                             f"{self.provider.provider_name}:{getattr(self.provider, 'profile', '')}")
         unique: dict[str, AcquisitionRequest] = {}
+        stopped_reason = None
+        not_attempted = 0
         for request in requests:
             key = f"{namespace}:{request.request_id}"
             unique.setdefault(key, request)
@@ -126,15 +130,29 @@ class AcquisitionManager:
             f"{namespace}:{request.request_id}"
         )]
         if self.daily_quota is not None:
-            today = datetime.now(timezone.utc).date().isoformat()
+            now = datetime.now(timezone.utc)
+            window_start = now - timedelta(hours=24)
             prefix = f"{namespace}:"
-            used = self.store.count_acquired_on(today, prefix)
-            if len(pending) > max(0, self.daily_quota - used):
-                raise ValueError(f"el lote pendiente ({len(pending)}) supera la cuota restante del día "
-                                 f"({max(0, self.daily_quota - used)})")
+            used = self.store.count_http_requests_since(window_start, prefix)
+            remaining = max(0, self.daily_quota - used)
+            if len(pending) > remaining:
+                raise ValueError(f"el lote pendiente ({len(pending)}) supera la cuota local restante "
+                                 "de la ventana móvil de 24 horas "
+                                 f"({remaining})")
+            # El límite del proveedor es por intentos HTTP, incluidos reintentos.
+            # Acotar el presupuesto del cliente evita que retries excedan el
+            # guardarraíl local aunque el número de rutas pendientes quepa.
+            provider_http_budget = getattr(self.provider, "max_http_requests", None)
+            provider_http_used = int(getattr(self.provider, "http_requests_made", 0))
+            if hasattr(self.provider, "max_http_requests"):
+                daily_http_ceiling = provider_http_used + remaining
+                self.provider.max_http_requests = (
+                    daily_http_ceiling if provider_http_budget is None
+                    else min(provider_http_budget, daily_http_ceiling)
+                )
         acquired, skipped, failed = 0, duplicates, 0
         failure_details = []
-        for request in requests:
+        for request_index, request in enumerate(requests):
             request_id = f"{namespace}:{request.request_id}"
             if self.store.request_succeeded(request_id) and not refresh:
                 skipped += 1
@@ -147,27 +165,71 @@ class AcquisitionManager:
                 safe_request = dict(safe_request)
                 safe_request["acquisition"] = {
                     "acquired_at": datetime.now(timezone.utc).isoformat(),
+                    "request_id": request_id,
+                    "origin_id": request.origin.city_id,
+                    "destination_id": request.destination.city_id,
+                    "strategy": request.strategy,
+                    "profile": getattr(self.provider, "profile", ""),
+                    "fastest_route_id": request.fastest_route_id(
+                        getattr(self.provider, "profile", "")
+                    ),
+                    "is_primary_fastest": bool(
+                        request.strategy == "fastest" and not request.avoid_tolls
+                        and not request.extra_info
+                    ),
+                    "extra_info": list(request.extra_info),
                     "http_requests": int(getattr(self.provider, "http_requests_made", 0))
                     - request_attempts_before,
                     "http_status_codes": list(
                         getattr(self.provider, "http_status_codes", ())[request_status_before:]
                     ),
+                    "rate_limit_headers": dict(
+                        getattr(self.provider, "last_rate_limit_headers", {})
+                    ),
                 }
                 stage = "persistence"
                 self.store.save_success(request_id, safe_request, response, alternatives)
                 acquired += 1
+                remaining = (getattr(self.provider, "last_rate_limit_headers", {})
+                             .get("x-ratelimit-remaining"))
+                try:
+                    remaining_count = int(remaining) if remaining is not None else None
+                except (TypeError, ValueError):
+                    remaining_count = None
+                if remaining_count is not None and remaining_count <= 0:
+                    stopped_reason = "provider_reported_no_remaining_quota"
+                    not_attempted = sum(
+                        1 for remaining_request in requests[request_index + 1:]
+                        if refresh or not self.store.request_succeeded(
+                            f"{namespace}:{remaining_request.request_id}"
+                        )
+                    )
+                    break
+                if remaining_count is not None and hasattr(self.provider, "max_http_requests"):
+                    # Un encabezado actual del proveedor prevalece sobre el
+                    # guardarraíl local; el reset no se interpreta como
+                    # medianoche ni se toma de snapshots de otra ejecución.
+                    current_http = int(getattr(self.provider, "http_requests_made", 0))
+                    provider_ceiling = current_http + remaining_count
+                    configured_ceiling = getattr(self.provider, "max_http_requests", None)
+                    self.provider.max_http_requests = (
+                        provider_ceiling if configured_ceiling is None
+                        else min(configured_ceiling, provider_ceiling)
+                    )
             except Exception as exc:
                 attempts = (int(getattr(self.provider, "http_requests_made", 0))
                             - request_attempts_before)
                 statuses = tuple(getattr(self.provider, "http_status_codes", ())[request_status_before:])
+                is_persistence_error = isinstance(exc, PersistenceError) or stage == "persistence"
                 is_provider_diagnostic = all(hasattr(exc, attribute) for attribute in
                                              ("category", "stage", "http_status_code"))
-                error_stage = getattr(exc, "stage", stage) if is_provider_diagnostic else stage
-                category = getattr(exc, "category", type(exc).__name__) if is_provider_diagnostic else (
-                    "persistence_error" if stage == "persistence" else "unexpected_error")
-                safe_message = str(exc) if is_provider_diagnostic else (
-                    "no se pudo guardar la respuesta validada" if stage == "persistence"
-                    else f"fallo inesperado durante la solicitud ({type(exc).__name__})")
+                error_stage = (getattr(exc, "stage", stage) if is_provider_diagnostic
+                               else "persistence" if is_persistence_error else stage)
+                category = ("persistence_error" if is_persistence_error else
+                            getattr(exc, "category", type(exc).__name__) if is_provider_diagnostic
+                            else "unexpected_error")
+                safe_message = (str(exc) if is_persistence_error or is_provider_diagnostic else
+                                f"fallo inesperado durante la solicitud ({type(exc).__name__})")
                 secret = getattr(self.provider, "api_key", None)
                 if secret:
                     safe_message = safe_message.replace(secret, "[REDACTED]")
@@ -192,9 +254,39 @@ class AcquisitionManager:
                     ),
                     "timeout_seconds": getattr(self.provider, "timeout_seconds", None),
                     "provider_may_have_processed_request": (
-                        category == "timeout" and attempts > 0 and status_code is None
+                        attempts > 0 and (
+                            status_code is not None
+                            or category not in {"connection_refused", "dns_error"}
+                        )
+                    ),
+                    "response_received": bool(status_code is not None and 200 <= status_code < 300),
+                    "rate_limit_headers": dict(
+                        getattr(self.provider, "last_rate_limit_headers", {})
                     ),
                 }
+                if isinstance(exc, PersistenceError):
+                    diagnostic.update({
+                        "persistence_exception_type": exc.cause_type,
+                        "persistence_message": exc.cause_message.replace(secret, "[REDACTED]")
+                        if secret else exc.cause_message,
+                        "persistence_operation": exc.operation,
+                        "persistence_stage": exc.stage,
+                        "persistence_resource": exc.resource,
+                        "raw_response_file": exc.raw_response_file,
+                        "raw_response_available": exc.raw_response_available,
+                        "offline_recovery_possible": exc.raw_response_available,
+                    })
+                elif is_persistence_error:
+                    diagnostic.update({
+                        "persistence_exception_type": type(exc).__name__,
+                        "persistence_message": safe_message,
+                        "persistence_operation": "save_success",
+                        "persistence_stage": "unknown_write_stage",
+                        "persistence_resource": None,
+                        "raw_response_file": None,
+                        "raw_response_available": False,
+                        "offline_recovery_possible": False,
+                    })
                 diagnostic_path = self.store.save_failure(
                     request_id, type(exc).__name__,
                     http_requests=attempts, http_status_codes=statuses, diagnostic=diagnostic,
@@ -204,7 +296,18 @@ class AcquisitionManager:
                                         "http_status_codes": statuses,
                                         "diagnostic_file": diagnostic_path})
                 failed += 1
+                if category in {"authentication_rejected", "rate_limited", "persistence_error",
+                                "http_budget_exhausted", "connection_refused", "dns_error",
+                                "connection_error", "transport_error"}:
+                    stopped_reason = category
+                    not_attempted = sum(
+                        1 for remaining in requests[request_index + 1:]
+                        if refresh or not self.store.request_succeeded(
+                            f"{namespace}:{remaining.request_id}"
+                        )
+                    )
+                    break
         return AcquisitionSummary(original_count, acquired, skipped, failed,
                                   int(getattr(self.provider, "http_requests_made", 0)) - attempts_before,
                                   tuple(getattr(self.provider, "http_status_codes", ())[status_codes_before:]),
-                                  tuple(failure_details))
+                                  tuple(failure_details), not_attempted, stopped_reason)

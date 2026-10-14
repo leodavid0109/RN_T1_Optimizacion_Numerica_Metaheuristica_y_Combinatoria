@@ -64,6 +64,7 @@ class OpenRouteServiceProvider:
         self.max_http_requests = max_http_requests
         self.http_requests_made = 0
         self.http_status_codes: list[int] = []
+        self.last_rate_limit_headers: dict[str, str] = {}
         self.min_interval_seconds = min_interval_seconds
         self.opener, self.sleep, self.clock = opener, sleep, clock
         self.today = today or (lambda: datetime.now(timezone.utc).date().isoformat())
@@ -157,6 +158,7 @@ class OpenRouteServiceProvider:
     def _post(self, url: str, body: Mapping) -> dict:
         payload = json.dumps(body, separators=(",", ":")).encode("utf-8")
         for attempt in range(self.max_retries + 1):
+            self.last_rate_limit_headers = {}
             if self._last_request_at is not None:
                 wait = self.min_interval_seconds - (self.clock() - self._last_request_at)
                 if wait > 0:
@@ -193,6 +195,11 @@ class OpenRouteServiceProvider:
                 self.sleep(min(2**attempt, 30))
                 continue
 
+            self.last_rate_limit_headers = {
+                name: str(value) for name in (
+                    "x-ratelimit-limit", "x-ratelimit-remaining", "x-ratelimit-reset", "retry-after"
+                ) if headers and (value := headers.get(name)) is not None
+            }
             self.http_status_codes.append(status)
             if status == 401 or status == 403:
                 raise ProviderError(f"el proveedor rechazó autenticación/permisos (HTTP {status})",

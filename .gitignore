@@ -12,9 +12,14 @@ pytest-run-*/
 # salidas de las corridas de demostración (regenerables en segundos)
 results/*_demo/
 figures/*_demo/
+results/reproducible/
+figures/reproducible/
+results/reproducible_*/
+figures/reproducible_*/
 
 # dependencias de Node del generador del informe (npm --prefix informe install)
 node_modules/
+informe/figures/
 
 # el informe se edita en Google Docs; el .docx generado es solo local
 docs/Informe_Parte1.docx
