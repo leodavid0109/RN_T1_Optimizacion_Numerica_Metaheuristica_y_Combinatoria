@@ -1,0 +1,28 @@
+# Barrido de hiperparámetros del GA sobre la instancia económica (un valor de la hora).
+# Uso: python -m experiments.tsp_ga_sweep --config configs/tsp_ga_sweep.yaml
+# Semillas distintas a las del experimento final (1000.. vs 0..29) para no sobreajustar a las semillas.
+dataset: data/datasets/spain_tsp_economic_20261013
+incluir_peajes: true
+valor_hora: 25.0
+modo: uno_a_uno          # uno_a_uno | grilla
+n_runs: 5
+semilla_base: 1000
+presupuesto: 20000
+ga:                      # configuración base
+  population_size: 100
+  crossover_rate: 0.9
+  mutation_rate: 0.2
+  tournament_size: 3
+  elite_size: 2
+  crossover: ox
+  mutation: inversion
+barrido:
+  population_size: [30, 50, 100, 200]
+  crossover_rate: [0.6, 0.9, 1.0]
+  mutation_rate: [0.1, 0.2, 0.5, 0.8]
+  tournament_size: [2, 3, 5, 7]
+  elite_size: [0, 2, 5, 10]
+  crossover: [ox, pmx]
+  mutation: [swap, inversion]
+salidas:
+  resultados: results/tsp_ga_sweep

@@ -1,0 +1,21 @@
+# DEMO (< 2 min) del experimento del GA sobre la instancia económica nacional (Parte 2).
+# Uso: python -m experiments.tsp_ga_experiment --config configs/tsp_ga_demo_exp.yaml
+# Peajes EXPERIMENTALES (proxy sin calibrar + supuestos): ver src/tsp/economic_dataset.py.
+dataset: data/datasets/spain_tsp_economic_20261013
+incluir_peajes: true
+valores_hora: [10, 25, 50]
+n_runs: 3
+semilla_base: 0                      # semillas semilla_base .. semilla_base+n_runs-1
+presupuesto: 3000                   # evaluaciones completas de ruta por corrida
+referencias: [nn, nn_2opt]           # líneas base con la misma matriz y presupuesto: nn | nn_2opt | two_opt
+ga:
+  population_size: 100
+  crossover_rate: 0.9
+  mutation_rate: 0.2
+  tournament_size: 3
+  elite_size: 2
+  crossover: ox
+  mutation: inversion
+salidas:
+  resultados: results/tsp_ga_demo
+  figuras: figures/tsp_ga_demo

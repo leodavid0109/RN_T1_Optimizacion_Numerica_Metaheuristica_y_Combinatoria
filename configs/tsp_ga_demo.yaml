@@ -1,0 +1,16 @@
+# Demostración del GA sobre la instancia económica nacional (47 capitales, matrices dirigidas).
+# Peajes EXPERIMENTALES (proxy sin calibrar + supuestos): ver docstring de src/tsp/economic_dataset.py.
+# Parámetros del GA demostrativos: requieren barrido antes de fijarlos para el estudio.
+semilla: 0
+presupuesto: 20000
+valor_hora_eur_h: 25.0   # 10, 25 y 50 tienen matriz publicada; cualquier valor >= 0 se puede usar
+dataset: data/datasets/spain_tsp_economic_20261013
+incluir_peajes: true     # false = baseline v*T + combustible sin peajes
+ga:
+  population_size: 100
+  crossover_rate: 0.9
+  mutation_rate: 0.2
+  tournament_size: 3
+  elite_size: 2
+  crossover: ox          # ox | pmx
+  mutation: inversion    # swap | inversion

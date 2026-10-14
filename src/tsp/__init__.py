@@ -7,6 +7,7 @@ from .evaluation import EvaluationBudgetExceeded, RunEvaluator
 from .models import AlternativeTSPProblem, SelectedAlternative, UnverifiableCostError
 from .problem import RouteCost, TSPProblem
 from .aco import AntSystem
+from .ga import GeneticAlgorithm
 from .baselines import NearestNeighbor, NearestNeighborTwoOpt, TwoOpt
 from .exact import ExactTSPResult, MAX_EXACT_CITIES, solve_exact_small
 
@@ -15,6 +16,7 @@ __all__ = [
     "AlternativeTSPProblem",
     "AntSystem",
     "ExactTSPResult",
+    "GeneticAlgorithm",
     "ConvergencePoint",
     "EvaluationBudgetExceeded",
     "RouteCost",
